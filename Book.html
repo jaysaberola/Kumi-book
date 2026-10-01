@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Kumi- Your Reading Corner</title>
+<title>KUMI — Your Reading Corner</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
@@ -158,11 +158,11 @@ function seedDB(){
     progress:{'u_reader:s_moonlight-after-rain':{ch:4,pct:.62,at:NOW-2*DAY},'u_reader:s_kingdom-beyond-clouds':{ch:7,pct:.35,at:NOW-DAY}},
     prefs:{},
     notifs:{
-      u_reader:[{id:'n1',type:'chapter',text:'Mira Chen posted a new chapter of Moonlight After Rain.',link:'#/story/s_moonlight-after-rain',read:false,at:NOW-6e6},{id:'n2',type:'follow',text:'June Wood followed you back. Small internet.',link:'#/creator/june',read:false,at:NOW-2*DAY}],
-      u_admin:[{id:'n3',type:'report',text:'3 new reports are waiting for review.',link:'#/admin/reports',read:false,at:NOW-4e6}],
-      u_mira:[{id:'n4',type:'like',text:'Sam Rivera liked Moonlight After Rain.',link:'#/story/s_moonlight-after-rain',read:true,at:NOW-3*DAY}]
+      u_reader:[{id:'n1',type:'chapter',text:'Mira Chen posted a new chapter of Moonlight After Rain.',link:'/story/s_moonlight-after-rain',read:false,at:NOW-6e6},{id:'n2',type:'follow',text:'June Wood followed you back. Small internet.',link:'/creator/june',read:false,at:NOW-2*DAY}],
+      u_admin:[{id:'n3',type:'report',text:'3 new reports are waiting for review.',link:'/admin/reports',read:false,at:NOW-4e6}],
+      u_mira:[{id:'n4',type:'like',text:'Sam Rivera liked Moonlight After Rain.',link:'/story/s_moonlight-after-rain',read:true,at:NOW-3*DAY}]
     },
-    meta:{brand:'Hatch',accent:'#E8930C'}
+    meta:{brand:'KUMI',accent:'#E8930C'}
   };
 }
 function novelBody(seed){
@@ -191,9 +191,9 @@ const db={
   followers(u){return (Object.keys(DB.follows).filter(k=>k.endsWith(':'+u.id))).length+u.fBase},
   // POST /api/stories/:id/like
   toggleLike(sid){DB.likes[sid]=DB.likes[sid]||[];const a=DB.likes[sid],i=a.indexOf(me.id);
-    if(i<0){a.push(me.id);const s=DB.stories.find(x=>x.id===sid);notify(s.author,'like',`${me.name} liked ${s.title}.`,'#/'+s.type+'/'+s.slug)}else a.splice(i,1);save()},
+    if(i<0){a.push(me.id);const s=DB.stories.find(x=>x.id===sid);notify(s.author,'like',`${me.name} liked ${s.title}.`,'/'+s.type+'/'+s.slug)}else a.splice(i,1);save()},
   // POST /follows
-  toggleFollow(uid){const k=me.id+':'+uid;if(DB.follows[k]){delete DB.follows[k]}else{DB.follows[k]=1;notify(uid,'follow',`${me.name} started following you.`,'#/'+me.role==='user'?'#/creator/'+me.username:'#/studio')}save()},
+  toggleFollow(uid){const k=me.id+':'+uid;if(DB.follows[k]){delete DB.follows[k]}else{DB.follows[k]=1;notify(uid,'follow',`${me.name} started following you.`,'/'+me.role==='user'?'/creator/'+me.username:'/studio')}save()},
   // POST /api/reading/progress
   setProg(sid,ch,pct){if(!me)return;DB.progress[me.id+':'+sid]={ch,pct,at:Date.now()};save()},
   prog(sid){return me?DB.progress[me.id+':'+sid]:null},
@@ -204,7 +204,7 @@ const db={
   addPost(type,text){DB.posts.unshift({id:'p_'+Date.now(),userId:me.id,type,text,likes:[],at:Date.now(),deleted:false});save()},
   // POST comments
   addComment(target,targetId,text,parentId){const c={id:'cm_'+Date.now(),target,targetId,userId:me.id,text,parentId,likes:[],at:Date.now(),deleted:false};DB.comments.push(c);save();
-    if(target==='story'){const s=DB.stories.find(x=>x.id===targetId);if(s&&s.author!==me.id)notify(s.author,'comment',`${me.name} commented on ${s.title}.`,'#/story/'+s.id)}
+    if(target==='story'){const s=DB.stories.find(x=>x.id===targetId);if(s&&s.author!==me.id)notify(s.author,'comment',`${me.name} commented on ${s.title}.`,'/story/'+s.id)}
     return c},
   deleteComment(id){const c=DB.comments.find(x=>x.id===id);if(c&&(c.userId===me.id||isAdmin())){c.deleted=true;save();return true}return false},
   notifs(){return me?(DB.notifs[me.id]||[]):[]},
@@ -219,11 +219,11 @@ function modal(html,w){$('#modalroot').innerHTML=`<div class="ovl" data-act="mod
 function closeModal(){$('#modalroot').innerHTML=''}
 function stars(r){return `<span class="stars">★★★★★<span style="width:${r/5*100}%">★★★★★</span></span>`}
 function avatar(u,cls=''){return `<span class="av ${cls}" style="background:${u.color}" title="${esc(u.name)}">${esc(u.name.split(' ').map(x=>x[0]).join('').slice(0,2))}</span>`}
-function vname(u,link=true){return `<b>${link?`<a href="#/creator/${u.username}" class="badgecheck">${esc(u.name)}${u.verified?'<i data-lucide="badge-check" class="vbadge" style="width:15px;height:15px"></i>':''}</a>`:esc(u.name)}</b>`}
+function vname(u,link=true){return `<b>${link?`<a href="/creator/${u.username}" class="badgecheck">${esc(u.name)}${u.verified?'<i data-lucide="badge-check" class="vbadge" style="width:15px;height:15px"></i>':''}</a>`:esc(u.name)}</b>`}
 function stPill(s){return `<span class="st ${s}">${s}</span>`}
 function rail(html,id){return `<div class="railwrap"><button class="railbtn l" data-act="rail" data-id="${id}" data-dir="-1"><i data-lucide="chevron-left"></i></button><div class="rail" id="${id}">${html}</div><button class="railbtn r" data-act="rail" data-id="${id}" data-dir="1"><i data-lucide="chevron-right"></i></button></div>`}
 function gcol(g){let h=0;for(const c of g)h=(h*33+c.charCodeAt(0))>>>0;return GENC[h%GENC.length]}
-function gchip(g){return `<a class="gchip" href="#/discover?g=${encodeURIComponent(g)}"><i style="background:${gcol(g)}"></i>${esc(g)}</a>`}
+function gchip(g){return `<a class="gchip" href="/discover?g=${encodeURIComponent(g)}"><i style="background:${gcol(g)}"></i>${esc(g)}</a>`}
 function coverSrc(s){return s.cover||pic(s.slug+'-cover',400,600)}
 function cover(s,cls=''){const raw=(s.desc||'').replace(/\s+/g,' ').trim();const preview=raw?raw.length>90?raw.slice(0,90)+'…':raw:'A story that keeps unfolding with every chapter.';return `<div class="cov ${cls}"><img loading="lazy" src="${coverSrc(s)}" alt="${esc(s.title)} cover"><span class="tbadge ${s.type}">${s.type.toUpperCase()}</span><button class="bm ${inLib(s.id)?'on':''}" data-act="lib" data-id="${s.id}" title="Bookmark"><i data-lucide="bookmark" style="width:15px;height:15px"></i></button><div class="cov-ov"><h4>${esc(s.title)}</h4><span class="a">${esc(au(s).name)}</span><p class="desc">${esc(preview)}</p></div></div>`}
 function au(s){return db.user(s.author)}
@@ -233,8 +233,8 @@ function isFoll(uid){return me&&!!DB.follows[me.id+':'+uid]}
 function storyCard(s,o={}){
   const p=o.prog;
   return `<div class="scard">
-    <a href="#/story/${s.id}">${o.rank?`<span class="rank">${o.rank}</span>`:''}${cover(s)}</a>
-    <a href="#/story/${s.id}" class="ti">${esc(s.title)}</a>
+    <a href="/story/${s.id}">${o.rank?`<span class="rank">${o.rank}</span>`:''}${cover(s)}</a>
+    <a href="/story/${s.id}" class="ti">${esc(s.title)}</a>
     <div class="au">${esc(au(s).name)}</div>
     <div class="mt"><span title="${s.rating} rating" style="display:flex;gap:4px;align-items:center">${stars(+s.rating)} <b style="color:var(--ink2)">${s.rating}</b></span><span style="display:flex;gap:4px;align-items:center"><i data-lucide="eye" style="width:12px;height:12px"></i>${fmt(s.views)}</span><span class="sdot" style="background:${s.status==='ongoing'?'var(--acc)':s.status==='completed'?'var(--teal)':'var(--mauve)'}"></span></div>
     ${p?`<div class="pbar"><i style="width:${Math.round(p.pct*100)}%"></i></div><div style="font-size:11px;color:var(--mut);margin-top:4px">Ch. ${p.ch} · ${Math.round(p.pct*100)}%</div>`:''}
@@ -257,19 +257,19 @@ function series(seed,n,base,grow){const r=det(seed);let v=base;return Array.from
 /* ---------------- chrome (header / bottom nav) ---------------- */
 function renderChrome(){
   const unread=db.notifs().filter(n=>!n.read).length;
-  const path=location.hash.slice(1)||'/';
+  let path=location.pathname||'/';if(/\/Book\.html$/i.test(path))path='/';
   const on=p=>path===p||path.startsWith(p+'/')?'on':'';
   $('#hdwrap').innerHTML=`<div class="wrap hd-in">
-    <a class="logo" href="#/" aria-label="KUMI — Your reading corner"><img class="kumi-logo" src="kumi-logo-animated.svg" alt="KUMI — Your reading corner"></a>
+    <a class="logo" href="/" aria-label="KUMI — Your reading corner"><img class="kumi-logo" src="kumi-logo-animated.svg" alt="KUMI — Your reading corner"></a>
     <nav class="nav">
-      <a href="#/" class="${path==='/'?'on':''}">Home</a>
-      <a href="#/discover" class="${on('/discover')||path.startsWith('/comics')||path.startsWith('/novels')?'on':''}">Discover</a>
-      <a href="#/manga" class="${on('/manga')}">Manga</a>
-      <a href="#/community" class="${on('/community')}">Community</a>
+      <a href="/" class="${path==='/'?'on':''}">Home</a>
+      <a href="/discover" class="${on('/discover')||path.startsWith('/comics')||path.startsWith('/novels')?'on':''}">Discover</a>
+      <a href="/manga" class="${on('/manga')}">Manga</a>
+      <a href="/community" class="${on('/community')}">Community</a>
     </nav>
     <div class="hd-r" style="position:relative">
       <button class="ibtn" data-act="searchOpen" title="Search"><i data-lucide="search"></i></button>
-      <a class="btn btn-acc btn-sm hd-publish" href="#/studio/new"><i data-lucide="feather" style="width:15px;height:15px"></i>Publish</a>
+      <a class="btn btn-acc btn-sm hd-publish" href="/studio/new"><i data-lucide="feather" style="width:15px;height:15px"></i>Publish</a>
       ${me?`<button class="ibtn" data-act="bell" title="Notifications"><i data-lucide="bell"></i><span class="dot">${unread||''}</span></button>
       <button data-act="umenu" style="border-radius:50%">${avatar(me,'sm')}</button>`
       :`<button class="btn btn-out btn-sm" data-act="authOpen">Sign in</button>`}
@@ -280,17 +280,32 @@ function renderChrome(){
     <div class="sres" id="sres"></div>
   </div></div>`;
   $('#bnav').innerHTML=[
-    ['home','Home','#/'],['compass','Discover','#/discover'],['library','Library','#/library'],['users','Community','#/community'],
-    [me?'user':'log-in',me?'Profile':'Sign in',me?'#/me':'SIGNIN']
-  ].map(b=>`<a href="${b[2]==='SIGNIN'?'javascript:void(0)':b[2]}" ${b[2]==='SIGNIN'?'data-act="authOpen"':''} class="${path===b[2].slice(1)?'on':''}"><i data-lucide="${b[0]}"></i>${b[1]}</a>`).join('');
+    ['home','Home','/'],['compass','Discover','/discover'],['library','Library','/library'],['users','Community','/community'],
+    [me?'user':'log-in',me?'Profile':'Sign in',me?'/me':'SIGNIN']
+  ].map(b=>`<a href="${b[2]==='SIGNIN'?'javascript:void(0)':b[2]}" ${b[2]==='SIGNIN'?'data-act="authOpen"':''} class="${path===b[2]?'on':''}"><i data-lucide="${b[0]}"></i>${b[1]}</a>`).join('');
   ic();
 }
 
 /* ---------------- router ---------------- */
 const guards={library:1,studio:1,admin:1,me:1};
+function appPath(){
+  if(location.hash.startsWith('#/'))history.replaceState({},'',location.hash.slice(1)||'/');
+  else if(/\/Book\.html$/i.test(location.pathname))history.replaceState({},'','/'+(location.search||''));
+  let path=location.pathname||'/';
+  if(/\/Book\.html$/i.test(path))path='/';
+  return path+location.search;
+}
+function navigate(url){
+  let path=String(url||'/');
+  if(path.startsWith('#'))path=path.slice(1);
+  if(!path.startsWith('/'))path='/'+path;
+  const current=location.pathname+location.search;
+  if(path!==current)history.pushState({},'',path);
+  route();
+}
 function route(){
   cleanups.forEach(f=>f());cleanups=[];
-  const raw=location.hash.slice(1)||'/';const [p,qs]=raw.split('?');const q=new URLSearchParams(qs||'');
+  const raw=appPath()||'/';const [p,qs]=raw.split('?');const q=new URLSearchParams(qs||'');
   const seg=p.split('/').filter(Boolean);
   const V=$('#view');V.className='fadein';window.scrollTo(0,0);
   const needAuth=()=>{if(!me){openAuth();V.innerHTML=homeHTML();postRender();return false}return true};
@@ -306,7 +321,7 @@ function route(){
   else if(a==='story'){out=storyHTML(seg[1])}
   else if(a==='read'){mount=readerMount(seg[1],seg[2],+seg[3]);if(mount===null){out=notFound();mount=null}else return}
   else if(a==='creator'){out=creatorHTML(seg[1],q)}
-  else if(a==='me'){if(!needAuth())return;location.hash='#/creator/'+me.username;return}
+  else if(a==='me'){if(!needAuth())return;navigate('/creator/'+me.username);return}
   else if(a==='studio'){if(!needAuth())return;out=studioHTML(seg)}
   else if(a==='admin'){if(!needAuth()||!isAdmin()){V.innerHTML=`<div class="wrap"><div class="empty" style="padding-top:100px"><i data-lucide="shield"></i><h3>Admins only</h3><p>This area is restricted to platform administrators.</p></div></div>`;postRender();return}out=adminHTML(seg)}
   else out=notFound();
@@ -372,7 +387,7 @@ function startHeroBanner(){
       descEl.textContent=desc;
       const read=document.getElementById('feature-read');
       if(read&&slide.dataset.href){read.setAttribute('href',slide.dataset.href);read.setAttribute('target','_blank');read.setAttribute('rel','noopener noreferrer')}
-      else if(read&&slide.dataset.id){read.setAttribute('href','#/story/'+slide.dataset.id);read.removeAttribute('target')}
+      else if(read&&slide.dataset.id){read.setAttribute('href','/story/'+slide.dataset.id);read.removeAttribute('target')}
       copyEl.classList.remove('is-changing');
     },180);
   };
@@ -389,8 +404,18 @@ function startHeroBanner(){
   window.__heroBannerTimer=setInterval(()=>show(index+1),2600);
   show(0);
 }
-window.addEventListener('hashchange',route);
-function notFound(){return `<div class="wrap"><div class="empty" style="padding:110px 20px"><i data-lucide="map"></i><h3>Lost in the story</h3><p>We couldn't find that page. It may have been unpublished or removed.</p><a class="btn btn-ink" style="margin-top:18px" href="#/">Back home</a></div></div>`}
+window.addEventListener('popstate',route);
+document.addEventListener('click',e=>{
+  if(e.target.closest('[data-act]'))return;
+  const a=e.target.closest('a');
+  if(!a||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey||e.button)return;
+  if(a.target==='_blank'||a.hasAttribute('download'))return;
+  const href=a.getAttribute('href');
+  if(!href||href.startsWith('javascript:')||href.startsWith('mailto:')||/^[a-z]+:/i.test(href))return;
+  e.preventDefault();
+  navigate(href);
+});
+function notFound(){return `<div class="wrap"><div class="empty" style="padding:110px 20px"><i data-lucide="map"></i><h3>Lost in the story</h3><p>We couldn't find that page. It may have been unpublished or removed.</p><a class="btn btn-ink" style="margin-top:18px" href="/">Back home</a></div></div>`}
 
 /* ================= HOME ================= */
 function homeHTML(){
@@ -420,7 +445,7 @@ function homeHTML(){
           <p id="feature-desc">${esc(featured.desc)}</p>
           <div class="feature-actions">
             <a class="btn btn-acc" id="feature-read" href="https://mangaplus.shueisha.co.jp/titles/${featured.id}" target="_blank" rel="noopener noreferrer"><i data-lucide="play"></i>Read</a>
-            <a class="btn btn-out" href="#/manga"><i data-lucide="library"></i>All manga</a>
+            <a class="btn btn-out" href="/manga"><i data-lucide="library"></i>All manga</a>
           </div>
         </div>
         <div class="feature-art">
@@ -439,52 +464,52 @@ function homeHTML(){
     </div>
   </section>
   <div class="wrap">
-    ${classics.length?`<section class="sect"><div class="shead"><div><span class="eyebrow">Free to read</span><h2>Classic comics</h2></div><a class="more" href="#/comics">See all <i data-lucide="arrow-right" style="width:14px;height:14px"></i></a></div>
+    ${classics.length?`<section class="sect"><div class="shead"><div><span class="eyebrow">Free to read</span><h2>Classic comics</h2></div><a class="more" href="/comics">See all <i data-lucide="arrow-right" style="width:14px;height:14px"></i></a></div>
       ${rail(classics.map(s=>storyCard(s)).join(''),'r-classic')}</section>`:''}
-    <section class="sect"><div class="shead"><div><span class="eyebrow">Official and free</span><h2>Anime manga</h2></div><a class="more" href="#/manga">See all <i data-lucide="arrow-right" style="width:14px;height:14px"></i></a></div>
+    <section class="sect"><div class="shead"><div><span class="eyebrow">Official and free</span><h2>Anime manga</h2></div><a class="more" href="/manga">See all <i data-lucide="arrow-right" style="width:14px;height:14px"></i></a></div>
       ${rail(MANGA_LINKS.map(mangaCard).join(''),'r-manga')}</section>
     ${cont.length?`<section class="sect"><div class="shead"><div><span class="eyebrow">Pick up where you left off</span><h2>Continue Reading</h2></div></div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:14px">
-      ${cont.map(({s,p})=>`<a class="cr" href="#/read/${s.type}/${s.id}/${p.ch}"><img class="cthumb" src="${coverSrc(s)}"><div style="flex:1"><b style="font-family:var(--fd);font-size:16px">${esc(s.title)}</b><div style="font-size:12.5px;color:var(--mut);margin:3px 0 9px">Chapter ${p.ch} · ${Math.round(p.pct*100)}% completed</div><div class="pbar" style="margin:0"><i style="width:${p.pct*100}%"></i></div></div><span class="btn btn-ink btn-sm">Resume</span></a>`).join('')}
+      ${cont.map(({s,p})=>`<a class="cr" href="/read/${s.type}/${s.id}/${p.ch}"><img class="cthumb" src="${coverSrc(s)}"><div style="flex:1"><b style="font-family:var(--fd);font-size:16px">${esc(s.title)}</b><div style="font-size:12.5px;color:var(--mut);margin:3px 0 9px">Chapter ${p.ch} · ${Math.round(p.pct*100)}% completed</div><div class="pbar" style="margin:0"><i style="width:${p.pct*100}%"></i></div></div><span class="btn btn-ink btn-sm">Resume</span></a>`).join('')}
       </div></section>`:''}
-    <section class="sect"><div class="shead"><div><span class="eyebrow">Everyone is reading</span><h2>Trending Now</h2></div><a class="more" href="#/discover">See all <i data-lucide="arrow-right" style="width:14px;height:14px"></i></a></div>
+    <section class="sect"><div class="shead"><div><span class="eyebrow">Everyone is reading</span><h2>Trending Now</h2></div><a class="more" href="/discover">See all <i data-lucide="arrow-right" style="width:14px;height:14px"></i></a></div>
       ${rail(trending.map(s=>storyCard(s)).join(''),'r-trend')}</section>
     <section class="sect"><div class="shead"><div><span class="eyebrow">Climbing fast</span><h2>Popular This Week</h2></div></div>
       ${rail(by((x,y)=>(y.views*det(y.slug)())-(x.views*det(x.slug)()),8).map((s,i)=>storyCard(s,{rank:i+1})).join(''),'r-week')}</section>
     ${rec.html}
-    <section class="sect"><div class="shead"><div><span class="eyebrow">Panels & speech bubbles</span><h2>Featured Comics</h2></div><a class="more" href="#/comics">See all <i data-lucide="arrow-right" style="width:14px;height:14px"></i></a></div>
+    <section class="sect"><div class="shead"><div><span class="eyebrow">Panels & speech bubbles</span><h2>Featured Comics</h2></div><a class="more" href="/comics">See all <i data-lucide="arrow-right" style="width:14px;height:14px"></i></a></div>
       ${rail(comics.map(s=>storyCard(s)).join(''),'r-comics')}</section>
-    <section class="sect"><div class="shead"><div><span class="eyebrow">Long nights, long chapters</span><h2>Featured Novels</h2></div><a class="more" href="#/novels">See all <i data-lucide="arrow-right" style="width:14px;height:14px"></i></a></div>
+    <section class="sect"><div class="shead"><div><span class="eyebrow">Long nights, long chapters</span><h2>Featured Novels</h2></div><a class="more" href="/novels">See all <i data-lucide="arrow-right" style="width:14px;height:14px"></i></a></div>
       ${rail(novels.map(s=>storyCard(s)).join(''),'r-novels')}</section>
     <section class="sect"><div class="shead"><div><span class="eyebrow">Fresh ink</span><h2>New & Recently Updated</h2></div></div>
       <div class="grid">${fresh.slice(0,8).map(s=>storyCard(s)).join('')}</div></section>
     <section class="sect"><div class="shead"><div><span class="eyebrow">Voices of Hatch</span><h2>Popular Creators</h2></div></div>
       <div class="creator-grid">${creators.map(u=>creatorCard(u)).join('')}</div></section>
     <section class="sect"><div class="shead"><div><span class="eyebrow">Finish what you start</span><h2>Top Completed Stories</h2></div></div>
-      <div class="rows">${done.map((s,i)=>`<a class="row rk" href="#/story/${s.id}"><span class="num">${i+1}</span><img class="cthumb" style="width:44px;height:60px;border-radius:8px" src="${coverSrc(s)}"><div class="grow"><h4>${esc(s.title)}</h4><div class="meta">${esc(au(s).name)} · ${db.chapters(s.id).length} chapters · ${fmt(s.views)} reads</div></div>${stPill(s.status)}<i data-lucide="chevron-right" style="color:var(--mut)"></i></a>`).join('')}</div></section>
-    <section class="sect"><div class="shead"><div><span class="eyebrow">From the community</span><h2>What's Happening</h2></div><a class="more" href="#/community">Open feed <i data-lucide="arrow-right" style="width:14px;height:14px"></i></a></div>
+      <div class="rows">${done.map((s,i)=>`<a class="row rk" href="/story/${s.id}"><span class="num">${i+1}</span><img class="cthumb" style="width:44px;height:60px;border-radius:8px" src="${coverSrc(s)}"><div class="grow"><h4>${esc(s.title)}</h4><div class="meta">${esc(au(s).name)} · ${db.chapters(s.id).length} chapters · ${fmt(s.views)} reads</div></div>${stPill(s.status)}<i data-lucide="chevron-right" style="color:var(--mut)"></i></a>`).join('')}</div></section>
+    <section class="sect"><div class="shead"><div><span class="eyebrow">From the community</span><h2>What's Happening</h2></div><a class="more" href="/community">Open feed <i data-lucide="arrow-right" style="width:14px;height:14px"></i></a></div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px">${DB.posts.filter(p=>!p.deleted).slice(0,3).map(postCard).join('')}</div></section>
     <section class="sect banner-cta">
       <svg class="squig" width="300" height="300" viewBox="0 0 100 100" fill="none"><path d="M8 68c14-30 22 14 34-18s16 22 28-10 14 18 22-2" stroke="var(--acc)" stroke-width="6" stroke-linecap="round"/></svg>
       <h2>Your story deserves an audience.</h2>
       <p style="margin:16px 0 26px;max-width:480px;opacity:.75">Free publishing tools, chapter scheduling, and readers who show up. Bring the story — we'll bring the crowd.</p>
-      <a class="btn btn-acc" href="#/studio/new"><i data-lucide="feather"></i>Start Publishing</a>
+      <a class="btn btn-acc" href="/studio/new"><i data-lucide="feather"></i>Start Publishing</a>
     </section>
   </div>`+footerHTML();
 }
 function creatorCard(u){
   const fol=isFoll(u.id);
-  return `<div class="ccard"><a class="cb" href="#/creator/${u.username}" style="background-image:url(${pic(u.username+'-banner',500,140)})"></a>
-  <div class="cbody"><a href="#/creator/${u.username}">${avatar(u)}</a>
+  return `<div class="ccard"><a class="cb" href="/creator/${u.username}" style="background-image:url(${pic(u.username+'-banner',500,140)})"></a>
+  <div class="cbody"><a href="/creator/${u.username}">${avatar(u)}</a>
   <div style="margin:7px 0 2px">${vname(u,false)}${u.verified?'<i data-lucide="badge-check" class="vbadge" style="width:15px;height:15px"></i>':''}</div>
   <div style="font-size:12px;color:var(--mut)">${fmt(db.followers(u))} followers</div>
   <div style="font-size:12.5px;color:var(--ink2);margin:8px 0;height:38px;overflow:hidden">${esc(u.bio)}</div>
   <button class="btn ${fol?'following':'btn-ink'} btn-sm" data-act="follow" data-id="${u.id}" style="width:100%;justify-content:center">${fol?'Following':'Follow'}</button></div></div>`}
 function footerHTML(){return `<footer class="ft"><div class="wrap ft-grid">
-  <div><a class="logo" style="font-size:20px" href="#/" aria-label="KUMI — Your reading corner"><img class="kumi-logo" src="kumi-logo-animated.svg" alt="KUMI — Your reading corner"></a>
+  <div><a class="logo" style="font-size:20px" href="/" aria-label="KUMI — Your reading corner"><img class="kumi-logo" src="kumi-logo-animated.svg" alt="KUMI — Your reading corner"></a>
   <p style="margin-top:12px;max-width:280px;color:var(--mut)">A home for independent comics and novels, and the people who can't stop reading them.</p></div>
-  <div><h5>Explore</h5><a href="#/discover">Discover</a><a href="#/manga">Manga</a><a href="#/comics">Comics</a><a href="#/novels">Novels</a><a href="#/community">Community</a></div>
-  <div><h5>Create</h5><a href="#/studio">Creator Studio</a><a href="#/studio/new">Publish a story</a><a href="#/studio/analytics">Analytics</a></div>
+  <div><h5>Explore</h5><a href="/discover">Discover</a><a href="/manga">Manga</a><a href="/comics">Comics</a><a href="/novels">Novels</a><a href="/community">Community</a></div>
+  <div><h5>Create</h5><a href="/studio">Creator Studio</a><a href="/studio/new">Publish a story</a><a href="/studio/analytics">Analytics</a></div>
   <div><h5>Demo</h5><a href="javascript:void(0)" data-act="resetDemo">Reset demo data</a><a href="javascript:void(0)" data-act="authOpen">Sign in / Register</a></div>
   </div><div class="wrap" style="margin-top:30px;padding-top:18px;border-top:1px solid var(--line);font-size:12px;color:var(--mut);text-align:center">Developed by Jay Saberola - Webfocus Solutions Inc.<div class="social-links" aria-label="Social media links">
     <a href="https://github.com/" target="_blank" rel="noopener noreferrer" aria-label="GitHub" title="GitHub"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.18-3.37-1.18-.45-1.15-1.11-1.46-1.11-1.46-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.9 1.53 2.35 1.09 2.92.83.09-.65.35-1.09.64-1.34-2.22-.25-4.56-1.11-4.56-4.95 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.02a9.58 9.58 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.38.2 2.4.1 2.65.64.7 1.03 1.59 1.03 2.68 0 3.85-2.34 4.69-4.57 4.94.36.31.68.92.68 1.86v2.76c0 .26.18.57.69.47A10 10 0 0 0 12 2Z"/></svg></a>
@@ -534,7 +559,7 @@ function discoverHTML(q,preset){
         ${[['trending','Trending'],['reads','Most Read'],['updated','Recently Updated'],['new','Newest'],['rated','Highest Rated']].map(o=>`<option value="${o[0]}" ${D.sort===o[0]?'selected':''}>${o[1]}</option>`).join('')}
       </select>
     </div>
-    <p id="manga-source" class="manga-source" style="display:${D.genres.has('Manga')?'block':'none'}">These series are free to read on MANGA Plus. <a href="#/manga">Open the manga shelf</a></p>
+    <p id="manga-source" class="manga-source" style="display:${D.genres.has('Manga')?'block':'none'}">These series are free to read on MANGA Plus. <a href="/manga">Open the manga shelf</a></p>
     <section id="manga-directory" ${D.genres.has('Manga')?'':'hidden'}>
       <h2 class="manga-section-title">Free on MANGA Plus</h2>
       ${mangaDirectory()}
@@ -595,8 +620,8 @@ function storyHTML(id){
           <div><b>${dstr(last?.at||s.createdAt).replace(', 2025','')}</b><span>updated</span></div>
         </div>
         <div class="sactions">
-          ${prog?`<a class="btn btn-acc" href="#/read/${s.type}/${s.id}/${prog.ch}"><i data-lucide="book-open"></i>Continue Ch. ${prog.ch}</a>`
-          :`<a class="btn btn-acc" href="#/read/${s.type}/${s.id}/1"><i data-lucide="book-open"></i>Read Now</a>`}
+          ${prog?`<a class="btn btn-acc" href="/read/${s.type}/${s.id}/${prog.ch}"><i data-lucide="book-open"></i>Continue Ch. ${prog.ch}</a>`
+          :`<a class="btn btn-acc" href="/read/${s.type}/${s.id}/1"><i data-lucide="book-open"></i>Read Now</a>`}
           <button class="btn btn-out ${lib?'following':''}" data-act="lib" data-id="${s.id}"><i data-lucide="${lib?'bookmark-check':'bookmark-plus'}"></i>${lib?'In Library':'Add to Library'}</button>
           <button class="btn btn-out ${foll?'following':''}" data-act="follow" data-id="${s.author}"><i data-lucide="${foll?'user-check':'user-plus'}"></i>${foll?'Following':'Follow'}</button>
           <button class="ibtn" data-act="share" data-id="${s.id}" title="Share"><i data-lucide="share-2"></i></button>
@@ -610,7 +635,7 @@ function storyHTML(id){
       <div class="rows">${chs.map(c=>{
         const locked=s.premium&&c.num>1;
         const read=prog&&c.num<prog.ch||(prog&&c.num===prog.ch);
-        return `<a class="row" href="${locked?'javascript:void(0)':`#/read/${s.type}/${s.id}/${c.num}`}">
+        return `<a class="row" href="${locked?'javascript:void(0)':`/read/${s.type}/${s.id}/${c.num}`}">
           <span class="num">${c.num}</span>
           <div class="grow"><h4>${esc(c.title)}</h4><div class="meta">${dstr(c.at)} ${read?'· <span style="color:var(--teal);font-weight:600;display:inline-flex;align-items:center;gap:4px"><i data-lucide="check" style="width:12px;height:12px"></i>read</span>':''}</div></div>
           ${locked?'<span class="pill" style="background:var(--acc-soft);color:var(--acc-ink)"><i data-lucide="lock" style="width:11px;height:11px;vertical-align:-1px"></i> Premium</span>':c.published?'':'<span class="st draft">draft</span>'}
@@ -672,11 +697,11 @@ function readerMount(type,sid,num){
     addEventListener('keydown',keys);cleanups.push(()=>removeEventListener('keydown',keys));
     ic();
   };
-  function navCh(s,chs,n){if(chs.find(c=>c.num===n))location.hash=`#/read/${s.type}/${s.id}/${n}`;else{toast('You\'ve reached the latest chapter','flag');location.hash='#/story/'+s.id}}
+  function navCh(s,chs,n){if(chs.find(c=>c.num===n))navigate(`/read/${s.type}/${s.id}/${n}`);else{toast('You\'ve reached the latest chapter','flag');navigate('/story/'+s.id)}}
   function comicBody(s,chs,ch){
     const theme=(me&&DB.prefs[me.id]?.comicTheme)||localStorage.getItem('hatch-comic-theme')||'dark';
     return `<div class="rd r${theme}" id="comic-reader"><div class="rbar">
-      <a class="ibtn" href="#/story/${s.id}"><i data-lucide="arrow-left"></i></a>
+      <a class="ibtn" href="/story/${s.id}"><i data-lucide="arrow-left"></i></a>
       <div style="flex:1;min-width:0"><b style="font-family:var(--fd);font-size:15px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(s.title)}</b><span style="font-size:11.5px;opacity:.6">Ch. ${ch.num} — ${esc(ch.title)}</span></div>
       <button class="ibtn" data-act="chsel"><i data-lucide="list"></i></button>
       <button class="ibtn" data-act="fit"><i data-lucide="scan"></i></button>
@@ -688,13 +713,13 @@ function readerMount(type,sid,num){
     </div>
     ${comicPagesHTML(s,ch)}
     <div class="rnav"><button class="btn btn-out" data-act="prevch" data-id="${s.id}" data-n="${ch.num}" ${ch.num===1?'disabled':''}><i data-lucide="chevron-left"></i>Previous</button>
-      <a class="btn btn-out" href="#/story/${s.id}">Story page</a>
+      <a class="btn btn-out" href="/story/${s.id}">Story page</a>
       <button class="btn btn-acc" data-act="nextch" data-id="${s.id}" data-n="${ch.num}">Next<i data-lucide="chevron-right"></i></button></div>
     <div class="wrap" style="max-width:820px;padding-bottom:60px"><div class="panel rcomments"><h3>Comments</h3>${commentBox('story',s.id)}<div id="clist">${commentList(DB.comments.filter(c=>c.target==='story'&&c.targetId===s.id&&!c.deleted))}</div></div></div></div>`}
   function novelBodyHTML(s,chs,ch){
     const p=(me&&DB.prefs[me.id])||{fs:19,ff:'var(--fd)',theme:'sepia',rw:680,lh:1.85};
     return `<div class="rd r${p.theme}" id="nrd" style="--fs:${p.fs}px;--ff:${p.ff};--rw:${p.rw}px;--lh:${p.lh}">
-    <div class="rbar"><a class="ibtn" href="#/story/${s.id}"><i data-lucide="arrow-left"></i></a>
+    <div class="rbar"><a class="ibtn" href="/story/${s.id}"><i data-lucide="arrow-left"></i></a>
       <div style="flex:1;min-width:0"><b style="font-family:var(--fd);font-size:15px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(s.title)}</b><span style="font-size:11.5px;opacity:.6">Ch. ${ch.num} — ${esc(ch.title)}</span></div>
       <button class="ibtn" data-act="toc"><i data-lucide="list"></i></button>
       <button class="ibtn" data-act="nset"><i data-lucide="type"></i></button>
@@ -703,7 +728,7 @@ function readerMount(type,sid,num){
     </div>
     <article class="nreader"><div class="chnum">Chapter ${ch.num}</div><h1 style="margin-bottom:.7em">${esc(ch.title)}</h1>${ch.content}
     <div style="margin-top:3em;padding-top:1.5em;border-top:1px solid var(--line);font-family:var(--fb);font-size:14px;color:var(--mut);display:flex;justify-content:space-between;align-items:center"><span>The end of Chapter ${ch.num} · <span id="rpct">0</span>% read</span><button class="btn btn-ink btn-sm" data-act="nextch" data-id="${s.id}" data-n="${ch.num}">Next chapter<i data-lucide="chevron-right"></i></button></div></article>
-    <div class="rnav"><button class="btn btn-out" data-act="prevch" data-id="${s.id}" data-n="${ch.num}" ${ch.num===1?'disabled':''}><i data-lucide="chevron-left"></i>Previous</button><a class="btn btn-out" href="#/story/${s.id}">Story page</a></div>
+    <div class="rnav"><button class="btn btn-out" data-act="prevch" data-id="${s.id}" data-n="${ch.num}" ${ch.num===1?'disabled':''}><i data-lucide="chevron-left"></i>Previous</button><a class="btn btn-out" href="/story/${s.id}">Story page</a></div>
     <div id="nsetbox"></div><div id="tocbox"></div></div>`}
 }
 
@@ -744,16 +769,16 @@ function libraryHTML(tab){
   const hist=[...prog].sort((a,b)=>b.p.at-a.p.at);
   const tabs=[['reading','Currently Reading'],['bookmarked','Bookmarked'],['following','Following'],['history','History']];
   let body='';
-  if(tab==='reading'){body=prog.length?`<div style="display:grid;gap:14px">${prog.map(({s,p})=>`<div class="librow"><img class="lth" src="${coverSrc(s)}"><div style="flex:1;min-width:0"><b style="font-family:var(--fd);font-size:17px">${esc(s.title)}</b><div style="font-size:12.5px;color:var(--mut);margin:3px 0 4px">${esc(au(s).name)} · Chapter ${p.ch} / ${db.chapters(s.id).length}</div><div class="pbar" style="max-width:340px"><i style="width:${p.pct*100}%"></i></div><div style="font-size:12px;color:var(--mut);margin-top:5px">${Math.round(p.pct*100)}% completed</div></div><a class="btn btn-acc btn-sm" href="#/read/${s.type}/${s.id}/${p.ch}">Continue</a></div>`).join('')}</div>`:emptyLib('book-open','Nothing in progress','Open any story and your progress will appear here automatically.')}
+  if(tab==='reading'){body=prog.length?`<div style="display:grid;gap:14px">${prog.map(({s,p})=>`<div class="librow"><img class="lth" src="${coverSrc(s)}"><div style="flex:1;min-width:0"><b style="font-family:var(--fd);font-size:17px">${esc(s.title)}</b><div style="font-size:12.5px;color:var(--mut);margin:3px 0 4px">${esc(au(s).name)} · Chapter ${p.ch} / ${db.chapters(s.id).length}</div><div class="pbar" style="max-width:340px"><i style="width:${p.pct*100}%"></i></div><div style="font-size:12px;color:var(--mut);margin-top:5px">${Math.round(p.pct*100)}% completed</div></div><a class="btn btn-acc btn-sm" href="/read/${s.type}/${s.id}/${p.ch}">Continue</a></div>`).join('')}</div>`:emptyLib('book-open','Nothing in progress','Open any story and your progress will appear here automatically.')}
   else if(tab==='bookmarked'){body=entries.length?`<div class="grid">${entries.map(s=>storyCard(s,{prog:db.prog(s.id)})).join('')}</div>`:emptyLib('bookmark','No bookmarks yet','Tap the bookmark on any cover to keep it here.')}
   else if(tab==='following'){body=foll.length?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px">${foll.map(u=>creatorCard(u)).join('')}</div>`:emptyLib('users','Not following anyone','Follow creators to get notified about new chapters.')}
-  else{body=hist.length?`<div class="rows">${hist.map(({s,p})=>`<a class="row" href="#/story/${s.id}"><span class="num"><i data-lucide="history" style="width:17px;height:17px"></i></span><div class="grow"><h4>${esc(s.title)}</h4><div class="meta">Ch. ${p.ch} · ${ago(p.at)}</div></div><a class="btn btn-out btn-sm" href="#/read/${s.type}/${s.id}/${p.ch}">Resume</a></a>`).join('')}</div>`:emptyLib('history','No reading history','Your trail will show up here.')}
+  else{body=hist.length?`<div class="rows">${hist.map(({s,p})=>`<a class="row" href="/story/${s.id}"><span class="num"><i data-lucide="history" style="width:17px;height:17px"></i></span><div class="grow"><h4>${esc(s.title)}</h4><div class="meta">Ch. ${p.ch} · ${ago(p.at)}</div></div><a class="btn btn-out btn-sm" href="/read/${s.type}/${s.id}/${p.ch}">Resume</a></a>`).join('')}</div>`:emptyLib('history','No reading history','Your trail will show up here.')}
   return `<div class="wrap" style="padding-top:34px;min-height:60vh">
     <span class="eyebrow">${esc(me.name)}</span><h1 style="font-size:clamp(26px,3.6vw,36px)">My Library</h1>
     <div class="ltabs" style="margin-top:22px">${tabs.map(t=>`<button class="${tab===t[0]?'on':''}" data-act="ltab" data-v="${t[0]}">${t[1]}</button>`).join('')}</div>${body}
   </div>`+footerHTML();
 }
-function emptyLib(icon,h,p){return `<div class="empty"><i data-lucide="${icon}"></i><h3>${h}</h3><p>${p}</p><a class="btn btn-ink" style="margin-top:16px" href="#/discover">Browse stories</a></div>`}
+function emptyLib(icon,h,p){return `<div class="empty"><i data-lucide="${icon}"></i><h3>${h}</h3><p>${p}</p><a class="btn btn-ink" style="margin-top:16px" href="/discover">Browse stories</a></div>`}
 
 /* ================= CREATOR PROFILE ================= */
 function creatorHTML(un,q){
@@ -769,11 +794,11 @@ function creatorHTML(un,q){
       ${avatar(u,'lg')}
       <div style="flex:1;min-width:220px;padding-bottom:4px"><h1 style="font-size:clamp(26px,3.4vw,38px)">${esc(u.name)}${u.verified?'<i data-lucide="badge-check" class="vbadge" style="width:22px;height:22px"></i>':''}</h1>
       <div style="font-size:13px;color:var(--mut);margin-top:4px">@${esc(u.username)} · ${fmt(db.followers(u))} followers · joined ${dstr(u.createdAt||NOW-200*DAY)}</div></div>
-      ${self?`<a class="btn btn-out" href="#/studio"><i data-lucide="layout-dashboard"></i>Creator Studio</a>`:me?`<div style="display:flex;gap:9px;padding-bottom:4px"><button class="btn ${foll?'following':'btn-acc'}" data-act="follow" data-id="${u.id}">${foll?'Following':'Follow'}</button><button class="btn btn-out" data-act="soon" data-m="Creator tips open up with monetization">Tip <span class="pill" style="background:var(--acc-soft)">Soon</span></button><button class="ibtn" data-act="report" data-t="user" data-id="${u.id}"><i data-lucide="flag"></i></button></div>`:''}
+      ${self?`<a class="btn btn-out" href="/studio"><i data-lucide="layout-dashboard"></i>Creator Studio</a>`:me?`<div style="display:flex;gap:9px;padding-bottom:4px"><button class="btn ${foll?'following':'btn-acc'}" data-act="follow" data-id="${u.id}">${foll?'Following':'Follow'}</button><button class="btn btn-out" data-act="soon" data-m="Creator tips open up with monetization">Tip <span class="pill" style="background:var(--acc-soft)">Soon</span></button><button class="ibtn" data-act="report" data-t="user" data-id="${u.id}"><i data-lucide="flag"></i></button></div>`:''}
     </div>
     <p class="desc" style="margin:18px 0;max-width:620px">${esc(u.bio)}</p>
     <div class="gchips">${u.links.map(l=>`<a class="gchip" href="javascript:void(0)" data-act="soon" data-m="External profiles open in the full release"><i data-lucide="link" style="width:12px;height:12px"></i>${esc(l)}</a>`).join('')}</div>
-    <div class="ltabs" style="margin:24px 0 26px">${[['stories','Stories'],['posts','Posts'],['about','About']].map(t=>`<a class="btn btn-sm ${tab===t[0]?'btn-ink':'btn-out'}" href="#/creator/${u.username}?t=${t[0]}">${t[1]}</a>`).join('')}</div>
+    <div class="ltabs" style="margin:24px 0 26px">${[['stories','Stories'],['posts','Posts'],['about','About']].map(t=>`<a class="btn btn-sm ${tab===t[0]?'btn-ink':'btn-out'}" href="/creator/${u.username}?t=${t[0]}">${t[1]}</a>`).join('')}</div>
     ${tab==='stories'?(stories.length?`<div class="grid">${stories.map(s=>storyCard(s)).join('')}</div>`:`<div class="empty"><i data-lucide="feather"></i><p>No published stories yet.</p></div>`)
     :tab==='posts'?(posts.length?`<div style="display:grid;gap:16px;max-width:720px">${posts.map(postCard).join('')}</div>`:`<div class="empty"><i data-lucide="message-square"></i><p>No posts yet.</p></div>`)
     :`<div class="panel" style="max-width:640px"><h3>About ${esc(u.name)}</h3><p style="color:var(--ink2);line-height:1.7">${esc(u.bio)}</p>
@@ -788,8 +813,8 @@ function studioHTML(seg){
   const mystories=db.stories().filter(s=>s.author===me.id);
   const menu=[['dash','Dashboard','layout-dashboard'],['stories','My Stories','library'],['new','Create Story','plus'],['analytics','Analytics','bar-chart-3'],['comments','Comments','message-square'],['followers','Followers','users'],['settings','Settings','settings']];
   if(me.role==='user'&&!mystories.length){if(a!=='new')return studioGate()}
-  const nav=(cls='')=>`<aside class="side ${cls}"><a class="slogo" href="#/studio">Creator Studio</a>${menu.map(m=>`<a href="#/studio/${m[0]}" class="${a===m[0]||(a==='edit'||a==='chapters')&&m[0]==='stories'?'on':''}"><i data-lucide="${m[2]}"></i>${m[1]}</a>`).join('')}<hr><a href="#/creator/${me.username}"><i data-lucide="user"></i>View public profile</a></aside>
-  <nav class="mtabs">${menu.map(m=>`<a href="#/studio/${m[0]}" class="${a===m[0]?'on':''}">${m[1]}</a>`).join('')}</nav>`;
+  const nav=(cls='')=>`<aside class="side ${cls}"><a class="slogo" href="/studio">Creator Studio</a>${menu.map(m=>`<a href="/studio/${m[0]}" class="${a===m[0]||(a==='edit'||a==='chapters')&&m[0]==='stories'?'on':''}"><i data-lucide="${m[2]}"></i>${m[1]}</a>`).join('')}<hr><a href="/creator/${me.username}"><i data-lucide="user"></i>View public profile</a></aside>
+  <nav class="mtabs">${menu.map(m=>`<a href="/studio/${m[0]}" class="${a===m[0]?'on':''}">${m[1]}</a>`).join('')}</nav>`;
   let main='';
   if(a==='dash'){
     const views=mystories.reduce((x,s)=>x+s.views,0),likes=mystories.reduce((x,s)=>x+db.likes(s),0);
@@ -803,16 +828,16 @@ function studioHTML(seg){
     ${mystories.length?barTop(mystories[0]):'<p style="color:var(--mut)">Publish a story to see per-chapter data.</p>'}</div>`;
   }
   else if(a==='stories'){
-    main=`<div style="display:flex;align-items:center;gap:14px;margin-bottom:20px"><h1 style="font-size:26px">My Stories</h1><a class="btn btn-acc btn-sm" style="margin-left:auto" href="#/studio/new"><i data-lucide="plus"></i>New story</a></div>
+    main=`<div style="display:flex;align-items:center;gap:14px;margin-bottom:20px"><h1 style="font-size:26px">My Stories</h1><a class="btn btn-acc btn-sm" style="margin-left:auto" href="/studio/new"><i data-lucide="plus"></i>New story</a></div>
     ${mystories.length?`<div class="rows">${mystories.map(s=>{const chs=db.chapters(s.id);return `<div class="row">
       <img class="cthumb" style="width:46px;height:64px;border-radius:8px" src="${coverSrc(s)}">
       <div class="grow"><h4>${esc(s.title)}</h4><div class="meta">${s.type} · ${chs.length} chapters · ${fmt(s.views)} views · ${dstr(s.updAt)}</div></div>
       ${s.published?stPill(s.status):'<span class="st draft">draft</span>'}
-      <a class="btn btn-out btn-sm" href="#/studio/chapters/${s.id}">Chapters</a>
-      <a class="ibtn" href="#/story/${s.id}" title="View"><i data-lucide="external-link"></i></a>
+      <a class="btn btn-out btn-sm" href="/studio/chapters/${s.id}">Chapters</a>
+      <a class="ibtn" href="/story/${s.id}" title="View"><i data-lucide="external-link"></i></a>
       ${isAdmin()?`<button class="ibtn" data-act="feat" data-id="${s.id}" title="Feature" style="color:${s.featured?'var(--acc)':''}"><i data-lucide="star"></i></button>`:''}
       <button class="ibtn" data-act="delstory" data-id="${s.id}"><i data-lucide="trash-2"></i></button></div>`}).join('')}</div>`
-    :`<div class="empty"><i data-lucide="feather"></i><h3>No stories yet</h3><p>Every platform favourite started at zero. Start yours.</p><a class="btn btn-acc" style="margin-top:16px" href="#/studio/new">Create your first story</a></div>`}`;
+    :`<div class="empty"><i data-lucide="feather"></i><h3>No stories yet</h3><p>Every platform favourite started at zero. Start yours.</p><a class="btn btn-acc" style="margin-top:16px" href="/studio/new">Create your first story</a></div>`}`;
   }
   else if(a==='new')main=wizardHTML();
   else if(a==='chapters'&&seg[2]){main=chaptersHTML(DB.stories.find(s=>s.id===seg[2]))}
@@ -827,7 +852,7 @@ function studioHTML(seg){
     const ids=mystories.map(s=>s.id);
     const cs=DB.comments.filter(c=>!c.deleted&&ids.includes(c.targetId)).sort((a,b)=>b.at-a.at);
     main=`<h1 style="font-size:26px;margin-bottom:20px">Comments on your stories</h1>
-    ${cs.length?`<div class="panel">${cs.map(c=>{const s=DB.stories.find(x=>x.id===c.targetId);return `<div class="cmt">${avatar(db.user(c.userId),'sm')}<div class="body"><div class="who">${esc(db.user(c.userId).name)}<span>on <a href="#/story/${s.id}" style="color:var(--acc-deep)">${esc(s.title)}</a> · ${ago(c.at)}</span></div><p>${esc(c.text)}</p>
+    ${cs.length?`<div class="panel">${cs.map(c=>{const s=DB.stories.find(x=>x.id===c.targetId);return `<div class="cmt">${avatar(db.user(c.userId),'sm')}<div class="body"><div class="who">${esc(db.user(c.userId).name)}<span>on <a href="/story/${s.id}" style="color:var(--acc-deep)">${esc(s.title)}</a> · ${ago(c.at)}</span></div><p>${esc(c.text)}</p>
     <div class="acts"><button data-act="creplyStory" data-id="${c.id}" data-s="${s.id}">Reply</button>${`<button data-act="cdel" data-id="${c.id}">Delete</button>`}</div></div></div>`}).join('')}</div>`
     :`<div class="empty"><i data-lucide="message-square"></i><p>No comments yet — share your story to get the conversation going.</p></div>`}`;
   }
@@ -847,7 +872,7 @@ function studioHTML(seg){
   }
   return `<div class="wrap shell">${nav()}<div>${main}</div></div>`+footerHTML();
 }
-function studioGate(){return `<div class="wrap"><div class="empty" style="padding:100px 20px"><i data-lucide="feather"></i><h3>Become a creator</h3><p>Publish your first comic or novel and the full Creator Studio unlocks — analytics, chapter tools, and an audience that subscribes to you, not an algorithm.</p><a class="btn btn-acc" style="margin-top:18px" href="#/studio/new">Create your first story</a></div></div>`+footerHTML()}
+function studioGate(){return `<div class="wrap"><div class="empty" style="padding:100px 20px"><i data-lucide="feather"></i><h3>Become a creator</h3><p>Publish your first comic or novel and the full Creator Studio unlocks — analytics, chapter tools, and an audience that subscribes to you, not an algorithm.</p><a class="btn btn-acc" style="margin-top:18px" href="/studio/new">Create your first story</a></div></div>`+footerHTML()}
 function barTop(s){
   const chs=db.chapters(s.id).slice(-8),r=det(s.id+'perf');
   const vals=chs.map(c=>Math.round(c.num*400*(0.6+r())));
@@ -902,17 +927,17 @@ function wizSync(){const t=$('#wtitle'),d=$('#wdesc'),sc=$('#wsched');if(t)WZ.ti
 function chaptersHTML(s){
   if(!s)return notFound();
   const chs=db.chapters(s.id);
-  return `<a href="#/studio/stories" style="font-size:13px;font-weight:600;color:var(--mut);display:inline-flex;gap:5px;align-items:center"><i data-lucide="arrow-left" style="width:14px;height:14px"></i>All stories</a>
+  return `<a href="/studio/stories" style="font-size:13px;font-weight:600;color:var(--mut);display:inline-flex;gap:5px;align-items:center"><i data-lucide="arrow-left" style="width:14px;height:14px"></i>All stories</a>
   <div style="display:flex;gap:16px;align-items:center;margin:14px 0 22px;flex-wrap:wrap">
     <img class="cthumb" style="width:52px;height:74px;border-radius:10px" src="${coverSrc(s)}">
     <div style="flex:1"><h1 style="font-size:24px">${esc(s.title)}</h1><div style="font-size:13px;color:var(--mut)">${s.type} · ${chs.length} chapters</div></div>
-    <a class="btn btn-acc" href="#/studio/chapters/${s.id}/new"><i data-lucide="plus"></i>New ${s.type==='comic'?'episode':'chapter'}</a></div>
+    <a class="btn btn-acc" href="/studio/chapters/${s.id}/new"><i data-lucide="plus"></i>New ${s.type==='comic'?'episode':'chapter'}</a></div>
   ${chs.length?`<div class="rows">${chs.map(c=>`<div class="row"><span class="num">${c.num}</span><div class="grow"><h4>${esc(c.title||'Untitled')}</h4><div class="meta">${c.published?(c.scheduledFor&&c.scheduledFor>Date.now()?'Scheduled for '+dstr(c.scheduledFor):'Published '+dstr(c.at)):'Draft · saved '+ago(c.at)}${s.type==='comic'?' · '+c.pages.length+' pages':''}${c.num>1&&s.premium?' · premium':''}</div></div>
     ${c.published?'':'<span class="st draft">draft</span>'}
-    <a class="btn btn-out btn-sm" href="#/studio/chapters/${s.id}/${c.num}">Edit</a>
-    ${c.published?`<a class="ibtn" href="#/read/${s.type}/${s.id}/${c.num}"><i data-lucide="external-link"></i></a>`:`<button class="btn btn-ink btn-sm" data-act="pubch" data-id="${c.id}">Publish</button>`}
+    <a class="btn btn-out btn-sm" href="/studio/chapters/${s.id}/${c.num}">Edit</a>
+    ${c.published?`<a class="ibtn" href="/read/${s.type}/${s.id}/${c.num}"><i data-lucide="external-link"></i></a>`:`<button class="btn btn-ink btn-sm" data-act="pubch" data-id="${c.id}">Publish</button>`}
     <button class="ibtn" data-act="delch" data-id="${c.id}"><i data-lucide="trash-2"></i></button></div>`).join('')}</div>`
-  :`<div class="empty"><i data-lucide="layers"></i><h3>No chapters yet</h3><p>Create your first ${s.type==='comic'?'episode':'chapter'} to publish this story.</p><a class="btn btn-acc" style="margin-top:14px" href="#/studio/chapters/${s.id}/new">Create</a></div>`}`;
+  :`<div class="empty"><i data-lucide="layers"></i><h3>No chapters yet</h3><p>Create your first ${s.type==='comic'?'episode':'chapter'} to publish this story.</p><a class="btn btn-acc" style="margin-top:14px" href="/studio/chapters/${s.id}/new">Create</a></div>`}`;
 }
 let ED={pages:[],drag:null};
 function editStoryHTML(s){
@@ -926,7 +951,7 @@ function editStoryHTML(s){
 /* chapter editor (novel rich text / comic pages) */
 function chapterEditorHTML(s,ch){
   ED={pages:ch?.pages?[...ch.pages]:[],drag:null};
-  return `<a href="#/studio/chapters/${s.id}" style="font-size:13px;font-weight:600;color:var(--mut);display:inline-flex;gap:5px;align-items:center"><i data-lucide="arrow-left" style="width:14px;height:14px"></i>Back to chapters</a>
+  return `<a href="/studio/chapters/${s.id}" style="font-size:13px;font-weight:600;color:var(--mut);display:inline-flex;gap:5px;align-items:center"><i data-lucide="arrow-left" style="width:14px;height:14px"></i>Back to chapters</a>
   <h1 style="font-size:24px;margin:12px 0 18px">${ch?'Edit':'New'} ${s.type==='comic'?'episode':'chapter'} <span style="color:var(--mut);font-weight:500;font-size:16px">· ${esc(s.title)}</span></h1>
   <label class="f">Chapter title</label><input id="chtitle" class="f-full" style="max-width:480px" value="${esc(ch?.title||'')}" placeholder="${s.type==='comic'?'Episode title':'Chapter title'}">
   ${s.type==='novel'?novelEditor(ch):comicEditor(ch)}
@@ -972,15 +997,15 @@ function shrink(file){return new Promise(res=>{const img=new Image();img.onload=
 function adminHTML(seg){
   const a=seg[1]||'dash';
   const menu=[['dash','Dashboard','layout-dashboard'],['users','Users','users'],['stories','Stories','library'],['reports','Reports','flag'],['genres','Categories','tags'],['settings','Settings','settings']];
-  const nav=`<aside class="side"><a class="slogo" href="#/admin">${esc(DB.meta.brand)} Admin</a>${menu.map(m=>`<a href="#/admin/${m[0]}" class="${a===m[0]?'on':''}"><i data-lucide="${m[2]}"></i>${m[1]}</a>`).join('')}<hr><a href="#/"><i data-lucide="arrow-left"></i>Back to site</a></aside>
-  <nav class="mtabs">${menu.map(m=>`<a href="#/admin/${m[0]}" class="${a===m[0]?'on':''}">${m[1]}</a>`).join('')}</nav>`;
+  const nav=`<aside class="side"><a class="slogo" href="/admin">${esc(DB.meta.brand)} Admin</a>${menu.map(m=>`<a href="/admin/${m[0]}" class="${a===m[0]?'on':''}"><i data-lucide="${m[2]}"></i>${m[1]}</a>`).join('')}<hr><a href="/"><i data-lucide="arrow-left"></i>Back to site</a></aside>
+  <nav class="mtabs">${menu.map(m=>`<a href="/admin/${m[0]}" class="${a===m[0]?'on':''}">${m[1]}</a>`).join('')}</nav>`;
   let main='';
   if(a==='dash'){
     const plViews=DB.stories.reduce((x,s)=>x+s.views,0);
     main=`<h1 style="font-size:26px;margin-bottom:22px">Platform health</h1>
     <div class="tiles">${statTile('users','Total users',fmt(DB.users.length+84230),'+312 today')}${statTile('zap','Active now',fmt(1439))}${statTile('feather','Creators',DB.users.filter(u=>u.role==='creator').length,`${DB.users.filter(u=>u.verified&&u.role==='creator').length} verified`)}${statTile('library','Stories',DB.stories.filter(s=>!s.deleted).length)}${statTile('layers','Chapters',DB.chapters.length)}${statTile('flag','Open reports',DB.reports.filter(r=>r.status==='pending').length,'needs review')}${statTile('eye','Total views',fmt(plViews))}</div>
     <div class="duo"><div class="panel"><h3>Reads — last 30 days</h3>${lineChart(series('adminv',30,900,.04))}</div><div class="panel"><h3>New signups</h3>${lineChart(series('adminu',30,40,.05),{color:'var(--teal)'})}</div></div>
-    ${DB.reports.some(r=>r.status==='pending')?`<div class="panel" style="margin-top:16px;border-color:#EAC7BF"><h3><i data-lucide="flag" style="color:var(--red)"></i>${DB.reports.filter(r=>r.status==='pending').length} reports awaiting review</h3><a class="btn btn-ink btn-sm" href="#/admin/reports">Open moderation queue</a></div>`:''}`;
+    ${DB.reports.some(r=>r.status==='pending')?`<div class="panel" style="margin-top:16px;border-color:#EAC7BF"><h3><i data-lucide="flag" style="color:var(--red)"></i>${DB.reports.filter(r=>r.status==='pending').length} reports awaiting review</h3><a class="btn btn-ink btn-sm" href="/admin/reports">Open moderation queue</a></div>`:''}`;
   }
   else if(a==='users'){
     main=`<h1 style="font-size:26px;margin-bottom:20px">Users</h1><div class="panel" style="padding:0;overflow-x:auto"><table class="adm"><tr><th>User</th><th>Role</th><th>Stories</th><th>Status</th><th style="text-align:right">Actions</th></tr>
@@ -996,7 +1021,7 @@ function adminHTML(seg){
       <div class="grow"><h4>${esc(s.title)}</h4><div class="meta">${esc(au(s).name)} · ${s.type} · ${fmt(s.views)} views</div></div>
       ${s.featured?'<span class="pill" style="background:var(--acc-soft);color:var(--acc-ink)">featured</span>':''}
       <button class="ibtn" data-act="feat" data-id="${s.id}" title="Toggle featured" style="color:${s.featured?'var(--acc)':''}"><i data-lucide="star"></i></button>
-      <a class="ibtn" href="#/story/${s.id}"><i data-lucide="external-link"></i></a>
+      <a class="ibtn" href="/story/${s.id}"><i data-lucide="external-link"></i></a>
       <button class="ibtn" data-act="admDelStory" data-id="${s.id}"><i data-lucide="trash-2"></i></button></div>`).join('')}</div>`;
   }
   else if(a==='reports'){
@@ -1062,17 +1087,17 @@ const A={
     ${list.length?list.slice(0,9).map(n=>`<button class="nrow ${n.read?'':'unread'}" data-act="nclick" data-id="${n.id}" data-link="${n.link}"><span class="nico"><i data-lucide="${{chapter:'book-open',follow:'user-plus',like:'heart',comment:'message-square',report:'flag'}[n.type]||'bell'}"></i></span><span><p>${esc(n.text)}</p><span class="t">${ago(n.at)}</span></span></button>`).join('')
     :`<div class="empty" style="padding:34px"><i data-lucide="bell-off"></i><p>You're all caught up.</p></div>`}</div>`);ic();
     $('#ndd').addEventListener('click',e=>e.stopPropagation())},
-  nclick(d,el){const n=db.notifs().find(x=>x.id===d.id);if(n)n.read=true;save();renderChrome();location.hash=d.link;closeDD()},
+  nclick(d,el){const n=db.notifs().find(x=>x.id===d.id);if(n)n.read=true;save();renderChrome();navigate(d.link);closeDD()},
   nall(){db.notifs().forEach(n=>n.read=true);save();renderChrome();closeDD();toast('All caught up')},
   umenu(d,el){
     if($('.dd#udd')){$('.dd#udd').remove();return}
     closeDD();
     el.insertAdjacentHTML('beforebegin',`<div class="dd udd" id="udd">
     <div style="padding:14px 16px;border-bottom:1px solid var(--line2);display:flex;gap:11px;align-items:center">${avatar(me,'sm')}<div><b style="font-size:14px">${esc(me.name)}</b><div style="font-size:12px;color:var(--mut)">@${esc(me.username)} · ${me.role}</div></div></div>
-    <a href="#/creator/${me.username}"><i data-lucide="user"></i>My profile</a>
-    <a href="#/library"><i data-lucide="library"></i>My library</a>
-    <a href="#/studio"><i data-lucide="layout-dashboard"></i>Creator Studio</a>
-    ${isAdmin()?`<a href="#/admin"><i data-lucide="shield"></i>Admin panel</a>`:''}<hr>
+    <a href="/creator/${me.username}"><i data-lucide="user"></i>My profile</a>
+    <a href="/library"><i data-lucide="library"></i>My library</a>
+    <a href="/studio"><i data-lucide="layout-dashboard"></i>Creator Studio</a>
+    ${isAdmin()?`<a href="/admin"><i data-lucide="shield"></i>Admin panel</a>`:''}<hr>
     <button data-act="signout"><i data-lucide="log-out"></i>Sign out</button></div>`);ic();
     $('#udd').addEventListener('click',e=>e.stopPropagation())},
   authOpen(){closeDD();openAuth()},
@@ -1080,7 +1105,7 @@ const A={
   demo(d){signIn({reader:'u_reader',creator:'u_mira',admin:'u_admin'}[d.v])},
   gsign(){toast('Google OAuth connects in the production build — try the demo accounts below','info')},
   forgot(){modal(`<h3>Reset your password</h3><p class="sub">Enter your email and we'll send reset instructions.</p><form data-form="forgot"><input name="email" class="f-full" type="email" required placeholder="you@example.com"><button class="btn btn-acc f-full" style="justify-content:center;margin-top:14px">Send reset link</button></form>`)},
-  signout(){me=null;localStorage.removeItem(SESSKEY);renderChrome();toast('Signed out — see you in the next chapter');location.hash='#/';route()},
+  signout(){me=null;localStorage.removeItem(SESSKEY);renderChrome();toast('Signed out — see you in the next chapter');navigate('/')},
   modalClose(d,el,e){if(e.target===el)closeModal()},
   modalClose2(){closeModal()},
   unlock(){toast('Coin unlocks arrive with the monetization release','lock')},
@@ -1094,7 +1119,7 @@ const A={
   follow(d){if(!me)return openAuth();db.toggleFollow(d.id);const f=isFoll(d.id);
     $$(`[data-act="follow"][data-id="${d.id}"]`).forEach(b=>{b.classList.toggle('following',f);b.innerHTML=b.classList.contains('btn-sm')?(f?'Following':'Follow'):`<i data-lucide="${f?'user-check':'user-plus'}"></i>${f?'Following':'Follow'}`});
     toast(f?`Now following ${db.user(d.id).name}`:'Unfollowed','users');ic()},
-  share(d){const url=location.origin+location.pathname+'#/story/'+d.id;
+  share(d){const url=location.origin+'/story/'+d.id;
     (navigator.clipboard?.writeText(url)||Promise.reject()).then(()=>toast('Link copied to clipboard','share-2')).catch(()=>toast(url,'share-2'))},
   report(d){if(!me)return openAuth();
     modal(`<h3>Report ${esc(d.t)}</h3><p class="sub">Our moderation team reviews every report.</p>
@@ -1114,10 +1139,10 @@ const A={
     el.classList.toggle('on',i<0);el.innerHTML=`<i data-lucide="heart" style="width:15px;height:15px"></i>${a.length||'Like'}`;ic()},
   ptoggle(d,el){const box=$('#pc-'+d.id);const open=box.style.display==='none';box.style.display=open?'block':'none';if(open)ic()},
   ptype(d,el){$$('#ptypeval').forEach(i=>i.value=d.v);$$('.typepick button').forEach(b=>b.classList.toggle('on',b===el))},
-  ltab(d){location.hash='#/library?t='+d.v},
+  ltab(d){navigate('/library?t='+d.v)},
   chsel(d,el){if($('#chseld')){$('#chseld').remove();return}const s=db.story(d.sid||d.id);
     el.closest('.rbar').insertAdjacentHTML('beforeend',`<div class="dd" id="chseld" style="left:12px;right:auto;width:290px;max-height:400px;overflow:auto"><div class="dd-h">Chapters</div>
-    ${db.chapters(s.id).map(c=>`<a class="nrow" href="#/read/${s.type}/${s.id}/${c.num}"><span class="num" style="width:28px;font-family:var(--fd);font-weight:800">${c.num}</span><span><p style="font-weight:600;color:var(--ink)">${esc(c.title)}</p></span></a>`).join('')}</div>`)},
+    ${db.chapters(s.id).map(c=>`<a class="nrow" href="/read/${s.type}/${s.id}/${c.num}"><span class="num" style="width:28px;font-family:var(--fd);font-weight:800">${c.num}</span><span><p style="font-weight:600;color:var(--ink)">${esc(c.title)}</p></span></a>`).join('')}</div>`)},
   dfilter(d){D.type=d.v;D.n=8;D.busy=false;$$('#dfilters [data-k="type"]').forEach(b=>{const active=b.dataset.v===D.type;b.style.cssText=active?'border-color:var(--ink);background:var(--ink);color:var(--bg)':''});drender()},
   dgenreToggle(d,el){const menu=$('#dgenre-menu'),open=menu.hidden;menu.hidden=!open;el.setAttribute('aria-expanded',String(open))},
   dgenre(d){if(D.genres.has(d.v))D.genres.delete(d.v);else D.genres.add(d.v);D.n=8;D.busy=false;$$('[data-act="dgenre"]').forEach(b=>{const active=D.genres.has(b.dataset.v);b.setAttribute('aria-pressed',String(active));b.querySelector('.genre-check').textContent=active?'✓':''});const label=$('#dgenre-label'),trigger=$('.genre-trigger'),count=$('.genre-count');label.textContent=D.genres.size?`${D.genres.size} genres selected`:'Filter by genre';count.textContent=D.genres.size;trigger.classList.toggle('has-selection',D.genres.size>0);$('#manga-source').style.display=D.genres.has('Manga')?'block':'none';$('#manga-directory').hidden=!D.genres.has('Manga');drender();ic()},
@@ -1125,13 +1150,13 @@ const A={
   ctheme(){const reader=$('#comic-reader');if(!reader)return;const theme=reader.classList.contains('rdark')?'light':'dark';reader.classList.toggle('rdark',theme==='dark');reader.classList.toggle('rlight',theme==='light');localStorage.setItem('hatch-comic-theme',theme);pset('comicTheme',theme);const button=$('[data-act="ctheme"]');button.title=`Switch to ${theme==='dark'?'light':'dark'} mode`;button.setAttribute('aria-label',button.title);button.innerHTML=`<i data-lucide="${theme==='dark'?'sun':'moon'}"></i>`;ic()},
   fit(){$('#cbody').classList.toggle('fit')},
   fullscreen(){document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen()},
-  prevch(d,el){if(el.disabled)return;location.hash=`#/read/${db.story(d.id).type}/${d.id}/${+d.n-1}`},
-  nextch(d){const s=db.story(d.id);const n=+d.n+1;if(db.chapters(s.id).find(c=>c.num===n))location.hash=`#/read/${s.type}/${s.id}/${n}`;else{toast('You\'re all caught up — latest chapter reached','flag');location.hash='#/story/'+s.id}},
+  prevch(d,el){if(el.disabled)return;navigate(`/read/${db.story(d.id).type}/${d.id}/${+d.n-1}`)},
+  nextch(d){const s=db.story(d.id);const n=+d.n+1;if(db.chapters(s.id).find(c=>c.num===n))navigate(`/read/${s.type}/${s.id}/${n}`);else{toast('You\'re all caught up — latest chapter reached','flag');navigate('/story/'+s.id)}},
   toc(){if($('#tocd')){$('#tocd').remove();$('#scrimd').remove();return}const s=db.story(d.id);
     document.body.insertAdjacentHTML('beforeend',`<div class="scrim" id="scrimd" data-act="tocx"></div><div class="drawer open" id="tocd"><div class="dh"><b style="font-family:var(--fd);font-size:17px">${esc(s.title)}</b><button class="ibtn" data-act="tocx"><i data-lucide="x"></i></button></div><div class="db">
-    ${db.chapters(s.id).map(c=>`<button data-act="tocgo" data-n="${c.num}" data-id="${s.id}" data-t="${s.type}" class="${c.num===+location.hash.split('/').pop()?'on':''}"><b>Ch. ${c.num}</b> — ${esc(c.title)}</button>`).join('')}</div></div>`);ic()},
+    ${db.chapters(s.id).map(c=>`<button data-act="tocgo" data-n="${c.num}" data-id="${s.id}" data-t="${s.type}" class="${c.num===+location.pathname.split('/').pop()?'on':''}"><b>Ch. ${c.num}</b> — ${esc(c.title)}</button>`).join('')}</div></div>`);ic()},
   tocx(){$('#tocd')?.remove();$('#scrimd')?.remove()},
-  tocgo(d){A.tocx();location.hash=`#/read/${d.t}/${d.id}/${d.n}`},
+  tocgo(d){A.tocx();navigate(`/read/${d.t}/${d.id}/${d.n}`)},
   nset(d,el){const box=$('#nsetbox');if(box.innerHTML){box.innerHTML='';return}
     const p=me?DB.prefs[me.id]||{fs:19,ff:'var(--fd)',theme:'sepia',rw:680,lh:1.85}:{fs:19,ff:'var(--fd)',theme:'sepia',rw:680,lh:1.85};
     box.innerHTML=`<div class="settings"><label>Theme</label><div class="seg">${[['light','sun','light'],['sepia','book-open','sepia'],['dark','moon','dark']].map(t=>`<button data-act="ntheme" data-v="${t[2]}" class="${p.theme===t[2]?'on':''}">${t[1]}</button>`).join('')}</div>
@@ -1160,14 +1185,14 @@ const A={
   pubch(d){const c=DB.chapters.find(x=>x.id===d.id);c.published=true;c.at=Date.now();const s=DB.stories.find(x=>x.id===c.storyId);s.updAt=Date.now();save();notifyFollowers(s);toast('Chapter published','rocket');route()},
   delch(d){if(A._confirm('Delete this chapter?')){const c=DB.chapters.find(x=>x.id===d.id);c.deleted=true;save();toast('Chapter deleted');route()}},
   delstory(d){if(A._confirm('Delete this story and all its chapters?')){const s=DB.stories.find(x=>x.id===d.id);s.deleted=true;DB.chapters.forEach(c=>{if(c.storyId===d.id)c.deleted=true});save();toast('Story removed','trash-2');route()}},
-  admDelStory(d){if(A._confirm('Remove this story from the platform?')){const s=DB.stories.find(x=>x.id===d.id);s.deleted=true;save();notify(s.author,'report',`Your story "${s.title}" was removed after review.`,'#/studio');toast('Story removed and author notified','shield');route()}},
-  feat(d){const s=DB.stories.find(x=>x.id===d.id);s.featured=!s.featured;save();if(s.featured)notify(s.author,'report',`"${s.title}" was featured on the homepage.`,'#/story/'+s.id);toast(s.featured?'Featured on homepage':'Removed from featured','star');route()},
+  admDelStory(d){if(A._confirm('Remove this story from the platform?')){const s=DB.stories.find(x=>x.id===d.id);s.deleted=true;save();notify(s.author,'report',`Your story "${s.title}" was removed after review.`,'/studio');toast('Story removed and author notified','shield');route()}},
+  feat(d){const s=DB.stories.find(x=>x.id===d.id);s.featured=!s.featured;save();if(s.featured)notify(s.author,'report',`"${s.title}" was featured on the homepage.`,'/story/'+s.id);toast(s.featured?'Featured on homepage':'Removed from featured','star');route()},
   verify(d){DB.users.find(u=>u.id===d.id).verified=1;save();notify(d.id,'report','Your creator profile is now verified. Welcome to the front page.','');toast('Creator verified','badge-check');route()},
   ban(d){const u=DB.users.find(x=>x.id===d.id);u.banned=!u.banned;save();toast(u.banned?`${u.name} banned`:`${u.name} reinstated`,'shield');route()},
   rdismiss(d){DB.reports.find(r=>r.id===d.id).status='dismissed';save();toast('Report dismissed');route()},
   rremove(d){const r=DB.reports.find(x=>x.id===d.id);removeTarget(r);r.status='resolved';save();toast('Content removed','shield');route()},
   rsuspend(d){const r=DB.reports.find(x=>x.id===d.id);const tid=r.targetType==='user'?r.targetId:targetOwner(r);if(tid){DB.users.find(u=>u.id===tid).suspended=true}r.status='resolved';save();toast('Account suspended','shield');route()},
-  viewTarget(d){const s=d.t==='story'?DB.stories.find(x=>x.id===d.id)?.slug:null;if(s)location.hash='#/story/'+d.id;else toast('Target is a comment or user profile','info')},
+  viewTarget(d){const s=d.t==='story'?DB.stories.find(x=>x.id===d.id)?.slug:null;if(s)navigate('/story/'+d.id);else toast('Target is a comment or user profile','info')},
   gdel(d){DB.genres=DB.genres.filter(g=>g!==d.v);save();toast('Genre removed','tags');route()},
   accset(d,el){$('input[name=accent]').value=d.v},
   range(d){$$('[data-act=range]').forEach(b=>b.classList.toggle('on',b===el));$('#anbox').innerHTML=rangeBox(+d.v);ic()},
@@ -1191,22 +1216,22 @@ function removeTarget(r){
   if(r.targetType==='post'){const p=DB.posts.find(x=>x.id===r.targetId);if(p)p.deleted=true}
 }
 function targetOwner(r){const s=DB.stories.find(x=>x.id===r.targetId);return s?.author||null}
-function notifyFollowers(s){Object.keys(DB.follows).filter(k=>k.endsWith(':'+s.author)).forEach(k=>notify(k.split(':')[0],'chapter',`New ${s.type} chapter of "${s.title}" is live.`,'#/story/'+s.id))}
+function notifyFollowers(s){Object.keys(DB.follows).filter(k=>k.endsWith(':'+s.author)).forEach(k=>notify(k.split(':')[0],'chapter',`New ${s.type} chapter of "${s.title}" is live.`,'/story/'+s.id))}
 /* search */
 function sSearch(q){
   const box=$('#sres');if(!box)return;q=q.trim().toLowerCase();
-  if(!q){box.innerHTML=`<div class="sc">Trending searches</div>${['moonlight','kingdom','romance','horror'].map(t=>`<a href="#/discover?q=${t}"><i data-lucide="trending-up" style="width:15px;height:15px;color:var(--mut)"></i>${t}</a>`).join('')}`;ic();return}
+  if(!q){box.innerHTML=`<div class="sc">Trending searches</div>${['moonlight','kingdom','romance','horror'].map(t=>`<a href="/discover?q=${t}"><i data-lucide="trending-up" style="width:15px;height:15px;color:var(--mut)"></i>${t}</a>`).join('')}`;ic();return}
   const st=db.stories().filter(s=>s.title.toLowerCase().includes(q)).slice(0,4);
   const us=DB.users.filter(u=>u.name.toLowerCase().includes(q)||u.username.includes(q)).slice(0,2);
   const gs=DB.genres.filter(g=>g.toLowerCase().includes(q)).slice(0,2);
-  box.innerHTML=(st.length?`<div class="sc">Stories</div>`+st.map(s=>`<a href="#/story/${s.id}"><span class="sthumb" style="background-image:url(${coverSrc(s)})"></span><span><b style="font-size:14px">${esc(s.title)}</b><div style="font-size:12px;color:var(--mut)">${esc(au(s).name)} · ${s.type}</div></span></a>`).join(''):'')
-  +(us.length?`<div class="sc">Authors</div>`+us.map(u=>`<a href="#/creator/${u.username}">${avatar(u,'sm')}<b style="font-size:14px">${esc(u.name)}</b><span style="font-size:12px;color:var(--mut)">${fmt(db.followers(u))} followers</span></a>`).join(''):'')
-  +(gs.length?`<div class="sc">Genres</div>`+gs.map(g=>`<a href="#/discover?g=${encodeURIComponent(g)}"><i data-lucide="tag" style="width:15px;height:15px;color:var(--mut)"></i>${esc(g)}</a>`).join(''):'')
+  box.innerHTML=(st.length?`<div class="sc">Stories</div>`+st.map(s=>`<a href="/story/${s.id}"><span class="sthumb" style="background-image:url(${coverSrc(s)})"></span><span><b style="font-size:14px">${esc(s.title)}</b><div style="font-size:12px;color:var(--mut)">${esc(au(s).name)} · ${s.type}</div></span></a>`).join(''):'')
+  +(us.length?`<div class="sc">Authors</div>`+us.map(u=>`<a href="/creator/${u.username}">${avatar(u,'sm')}<b style="font-size:14px">${esc(u.name)}</b><span style="font-size:12px;color:var(--mut)">${fmt(db.followers(u))} followers</span></a>`).join(''):'')
+  +(gs.length?`<div class="sc">Genres</div>`+gs.map(g=>`<a href="/discover?g=${encodeURIComponent(g)}"><i data-lucide="tag" style="width:15px;height:15px;color:var(--mut)"></i>${esc(g)}</a>`).join(''):'')
   ||`<div class="empty" style="padding:24px"><p>No matches for “${esc(q)}”.</p></div>`;ic();
 }
 document.addEventListener('input',e=>{if(e.target.id==='sinput')sSearch(e.target.value)});
 document.addEventListener('keydown',e=>{
-  if(e.key==='Enter'&&e.target.id==='sinput'&&e.target.value.trim()){location.hash='#/discover?q='+encodeURIComponent(e.target.value.trim());$('#spanel').classList.remove('open')}
+  if(e.key==='Enter'&&e.target.id==='sinput'&&e.target.value.trim()){navigate('/discover?q='+encodeURIComponent(e.target.value.trim()));$('#spanel').classList.remove('open')}
   if(e.key==='Escape'){$('#spanel')?.classList.remove('open');closeModal();closeDD()}
 });
 /* forms */
@@ -1232,11 +1257,11 @@ const F={
     const cl=$('#clist')||$('#pcl-'+parent.targetId);if(cl)cl.innerHTML=commentList(list);ic()},
   post(f){db.addPost(f.type.value,f.text.value.trim());toast('Posted to the feed','send');route()},
   report(f){DB.reports.unshift({id:'r_'+Date.now(),targetType:f.t.value,targetId:f.id.value,reporter:me.id,reason:f.reason.value,details:f.details.value.trim(),status:'pending',at:Date.now()});
-    DB.users.filter(u=>u.role==='admin').forEach(u=>notify(u.id,'report','A new report needs review.','#/admin/reports'));save();closeModal();toast('Report submitted — thank you','shield')},
+    DB.users.filter(u=>u.role==='admin').forEach(u=>notify(u.id,'report','A new report needs review.','/admin/reports'));save();closeModal();toast('Report submitted — thank you','shield')},
   pf(f){me.name=f.name.value.trim()||me.name;me.bio=f.bio.value.trim();save();toast('Profile saved','check')},
   editstory(f){const s=DB.stories.find(x=>x.id===f.dataset.id);s.title=f.title.value.trim()||s.title;s.desc=f.desc.value.trim();s.status=f.status.value;save();toast('Story updated','check');route()},
   gadd(f){const g=f.g.value.trim();if(g&&!DB.genres.includes(g)){DB.genres.push(g);save();toast('Genre added','tags');route()}},
-  brand(f){DB.meta.brand=f.brand.value.trim()||'Hatch';DB.meta.accent=f.accent.value;save();applyBrand();toast('Branding updated','check');route()},
+  brand(f){DB.meta.brand=f.brand.value.trim()||'KUMI';DB.meta.accent=f.accent.value;save();applyBrand();toast('Branding updated','check');route()},
 };
 document.addEventListener('submit',e=>{const f=e.target;if(f.dataset.form){e.preventDefault();F[f.dataset.form]?.(f)}});
 /* editor live wiring */
@@ -1258,7 +1283,7 @@ document.addEventListener('dragstart',e=>{const pg=e.target.closest?.('.pg');if(
 document.addEventListener('dragend',e=>{$$('.pg').forEach(p=>p.classList.remove('drag'))});
 document.addEventListener('dragover',e=>{const pg=e.target.closest?.('.pg');if(pg&&ED.drag!==null){e.preventDefault()}});
 document.addEventListener('drop',e=>{const pg=e.target.closest?.('.pg');if(pg&&ED.drag!==null){e.preventDefault();const to=+pg.dataset.i;const[m]=ED.pages.splice(ED.drag,1);ED.pages.splice(to,0,m);ED.drag=null;renderPages()}});
-function applyBrand(){document.documentElement.style.setProperty('--acc',DB.meta.accent);document.title=`${DB.meta.brand} — Stories Worth Getting Lost In`}
+function applyBrand(){if(DB.meta)DB.meta.brand='KUMI';document.documentElement.style.setProperty('--acc',DB.meta?.accent||'#E8930C');document.title='KUMI — Your Reading Corner';save()}
 /* helpers used by views defined after use */
 function chCommit(sid,num,pub){
   const s=DB.stories.find(x=>x.id===sid);
@@ -1277,7 +1302,7 @@ function chCommit(sid,num,pub){
   ch.title=title;s.updAt=Date.now();save();
   if(ch.published)notifyFollowers(s);
   toast(ch.published?'Chapter published — followers notified':'Draft saved','rocket');
-  location.hash='#/studio/chapters/'+sid;
+  navigate('/studio/chapters/'+sid);
 }
 function wizCommit(){
   wizSync();
@@ -1287,7 +1312,7 @@ function wizCommit(){
   if(WZ.schedule){DB.chapters.push({id:'c_'+s.id+'_0',storyId:s.id,num:1,title:'Chapter 1',content:novelBody(s.id),pages:[],published:false,scheduledFor:new Date(WZ.schedule).getTime(),deleted:false,at:Date.now()})}
   save();
   toast(WZ.published?'Story published! Add your first chapter.':'Story saved as draft','rocket');
-  location.hash='#/studio/chapters/'+s.id;
+  navigate('/studio/chapters/'+s.id);
 }
 /* original cover seeds for user-created stories */
 const _pic=pic;
