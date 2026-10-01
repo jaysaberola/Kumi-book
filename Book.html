@@ -1,0 +1,1299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hatch — Stories Worth Getting Lost In</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<link rel="stylesheet" href="Book.css">
+</head>
+<body>
+<div id="hdwrap" class="hd"></div>
+<main id="view" class="fadein"></main>
+<nav id="bnav"></nav>
+<div id="modalroot"></div>
+<div id="toasts"></div>
+
+<script>
+/* =====================================================================
+   HATCH — single-file product prototype.
+   The `DB` module below is a persistence layer whose methods map 1:1 to
+   the REST API (marked  // GET /api/...  etc.), so a real NestJS/Prisma
+   backend can replace it without touching any view code.
+===================================================================== */
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const DAY=864e5;
+const NOW=Date.now();
+const ic=()=>lucide.createIcons();
+function rng(seed){let t=seed;return()=>((t=(t*9301+49297)%233280)/233280)}
+function det(str){let h=9;for(const c of str)h=(h*31+c.charCodeAt(0))>>>0;return rng(h)}
+function fmt(n){return n>=1e6?(n/1e6).toFixed(1).replace('.0','')+'M':n>=1e3?(n/1e3).toFixed(1).replace('.0','')+'K':''+Math.round(n)}
+function ago(ts){const d=Date.now()-ts;if(d<DAY)return Math.max(1,Math.round(d/36e5))+'h ago';if(d<30*DAY)return Math.round(d/DAY)+'d ago';return new Date(ts).toLocaleDateString(undefined,{month:'short',day:'numeric'})}
+function dstr(ts){return new Date(ts).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})}
+let pic=(seed,w,h)=>`https://picsum.photos/seed/${seed}/${w}/${h}.jpg`;
+const COMIC_ART=[
+  {title:'Little Nemo comic strip (March 4, 1906)',artist:'Winsor McCay',url:'https://thumb.wikimedia.org/wikipedia/commons/thumb/9/97/Little_Nemo_1906-03-04.jpg/960px-Little_Nemo_1906-03-04.jpg',source:'https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-03-04.jpg'},
+  {title:'Little Nemo comic strip (March 18, 1906)',artist:'Winsor McCay',url:'https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c7/Little_Nemo_1906-03-18.jpg/960px-Little_Nemo_1906-03-18.jpg',source:'https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-03-18.jpg'},
+  {title:'Little Nemo comic strip (April 8, 1906)',artist:'Winsor McCay',url:'https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c0/Little_Nemo_1906-04-08.jpg/960px-Little_Nemo_1906-04-08.jpg',source:'https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-04-08.jpg'},
+  {title:'Little Nemo comic strip (August 5, 1906)',artist:'Winsor McCay',url:'https://thumb.wikimedia.org/wikipedia/commons/thumb/c/cb/Little_Nemo_1906-08-05.jpg/960px-Little_Nemo_1906-08-05.jpg',source:'https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-08-05.jpg'},
+  {title:'Little Nemo comic strip (May 6, 1906)',artist:'Winsor McCay',url:'https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a2/Little_Nemo_1906-05-06.jpg/960px-Little_Nemo_1906-05-06.jpg',source:'https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-05-06.jpg'},
+  {title:'Little Nemo comic strip (October 7, 1906)',artist:'Winsor McCay',url:'https://thumb.wikimedia.org/wikipedia/commons/thumb/d/df/Little_Nemo_1906-10-07.jpg/960px-Little_Nemo_1906-10-07.jpg',source:'https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-10-07.jpg'},
+  {title:'Little Nemo comic strip (October 21, 1906)',artist:'Winsor McCay',url:'https://thumb.wikimedia.org/wikipedia/commons/thumb/0/0b/Little_Nemo_1906-10-21.jpg/960px-Little_Nemo_1906-10-21.jpg',source:'https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-10-21.jpg'},
+  {title:'Little Nemo comic strip (December 9, 1906)',artist:'Winsor McCay',url:'https://thumb.wikimedia.org/wikipedia/commons/thumb/1/14/Little_Nemo_1906-12-09.jpg/960px-Little_Nemo_1906-12-09.jpg',source:'https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-12-09.jpg'}
+];
+function comicArtwork(story,index=0){const start=Math.floor(det((story.slug||story.id)+'-public-domain-comic-art')()*COMIC_ART.length);return COMIC_ART[((start+index)%COMIC_ART.length+COMIC_ART.length)%COMIC_ART.length]}
+function storyCover(story,w,h){return story.type==='comic'?comicArtwork(story).url:pic(story.slug+'-cover',w,h)}
+function comicPageArtwork(story,chapter,pageIndex){const current=chapter.pages?.[pageIndex];const stored=COMIC_ART.find(art=>art.url===current);if(stored)return stored;if(chapter.pageCredit&&current)return {url:current,...chapter.pageCredit};if(current&&!current.includes('picsum.photos'))return {url:current,title:'Creator-uploaded comic page',artist:'Story creator',source:null};return comicArtwork(story,(chapter.num-1)*11+pageIndex)}
+function comicPagesHTML(story,chapter){const pages=chapter.pages.map((_,i)=>comicPageArtwork(story,chapter,i));const credits=[...new Map(pages.filter(p=>p.source).map(p=>[p.source,p])).values()];const note=story.license==='public-domain'?'This page is a public-domain comic from Wikimedia Commons':'Sample panels are public-domain artwork from Wikimedia Commons';return `<div class="creader" id="cbody">${pages.map((p,i)=>`<img loading="lazy" src="${esc(p.url)}" alt="${esc(p.title||`Page ${i+1}`)} — ${esc(p.artist||'')}" ${p.source?`data-source="${esc(p.source)}"`:''}>`).join('')}</div>${credits.length?`<p class="comic-art-credit">${note}: ${credits.map(p=>`<a href="${esc(p.source)}" target="_blank" rel="noopener noreferrer">${esc(p.title)}</a> — ${esc(p.artist)}`).join(' · ')}.</p>`:''}`}
+const PUBLIC_COMICS=[{"slug":"little-nemo-1905","title":"Little Nemo in Slumberland, 1905","genres":["Fantasy","Adventure"],"views":1250000,"likes":42000,"rating":"4.9","ratingCount":3100,"featured":1,"desc":"Winsor McCay's Sunday pages from the strip's first year. Nemo falls asleep and wakes in Slumberland, where the dreams get larger every week. Published in 1905 and free to read — the artwork is in the public domain.","strips":[{"date":"1905-10-15","title":"October 15, 1905","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/3/38/Little_Nemo_1905-10-15.jpg/960px-Little_Nemo_1905-10-15.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1905-10-15.jpg"},{"date":"1905-10-29","title":"October 29, 1905","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/1/11/Little_Nemo_1905-10-29.jpg/960px-Little_Nemo_1905-10-29.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1905-10-29.jpg"},{"date":"1905-11-05","title":"November 5, 1905","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/e/ed/Little_Nemo_1905-11-05.jpg/960px-Little_Nemo_1905-11-05.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1905-11-05.jpg"},{"date":"1905-11-12","title":"November 12, 1905","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/Little_Nemo_1905-11-12.jpg/960px-Little_Nemo_1905-11-12.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1905-11-12.jpg"},{"date":"1905-11-19","title":"November 19, 1905","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/c/c9/Little_Nemo_1905-11-19.jpg/960px-Little_Nemo_1905-11-19.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1905-11-19.jpg"},{"date":"1905-11-26","title":"November 26, 1905","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/f/f7/Little_Nemo_1905-11-26.jpg/960px-Little_Nemo_1905-11-26.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1905-11-26.jpg"},{"date":"1905-12-03","title":"December 3, 1905","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/Little_Nemo_1905-12-03.jpg/960px-Little_Nemo_1905-12-03.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1905-12-03.jpg"},{"date":"1905-12-10","title":"December 10, 1905","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/8/82/Little_Nemo_1905-12-10.jpg/960px-Little_Nemo_1905-12-10.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1905-12-10.jpg"},{"date":"1905-12-17","title":"December 17, 1905","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/e/ee/Little_Nemo_1905-12-17.jpg/960px-Little_Nemo_1905-12-17.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1905-12-17.jpg"},{"date":"1905-12-24","title":"December 24, 1905","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/3/39/Little_Nemo_1905-12-24.jpg/960px-Little_Nemo_1905-12-24.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1905-12-24.jpg"},{"date":"1905-12-31","title":"December 31, 1905","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/9/93/Little_Nemo_1905-12-31.jpg/960px-Little_Nemo_1905-12-31.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1905-12-31.jpg"}]},{"slug":"little-nemo-1906","title":"Little Nemo in Slumberland, 1906","genres":["Fantasy","Adventure"],"views":1400000,"likes":51000,"rating":"4.9","ratingCount":4800,"featured":1,"desc":"A full year of Little Nemo Sunday pages, including the famous walking-bed and Slumberland journeys. Drawn by Winsor McCay in 1906. These scans are public-domain artwork from Wikimedia Commons.","strips":[{"date":"1906-01-07","title":"January 7, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/7/7d/Little_Nemo_1906-01-07.jpg/960px-Little_Nemo_1906-01-07.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-01-07.jpg"},{"date":"1906-01-14","title":"January 14, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/8/80/Little_Nemo_1906-01-14.jpg/960px-Little_Nemo_1906-01-14.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-01-14.jpg"},{"date":"1906-01-21","title":"January 21, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/4/4a/Little_Nemo_1906-01-21.jpg/960px-Little_Nemo_1906-01-21.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-01-21.jpg"},{"date":"1906-02-04","title":"February 4, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/3/3d/Little_Nemo_1906-02-04.jpg/960px-Little_Nemo_1906-02-04.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-02-04.jpg"},{"date":"1906-02-11","title":"February 11, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/3/3e/Little_Nemo_1906-02-11.jpg/960px-Little_Nemo_1906-02-11.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-02-11.jpg"},{"date":"1906-02-25","title":"February 25, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/Little_Nemo_1906-02-25.jpg/960px-Little_Nemo_1906-02-25.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-02-25.jpg"},{"date":"1906-03-04","title":"March 4, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/9/97/Little_Nemo_1906-03-04.jpg/960px-Little_Nemo_1906-03-04.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-03-04.jpg"},{"date":"1906-03-18","title":"March 18, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/c/c7/Little_Nemo_1906-03-18.jpg/960px-Little_Nemo_1906-03-18.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-03-18.jpg"},{"date":"1906-03-25","title":"March 25, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/5/54/Little_Nemo_1906-03-25.jpg/960px-Little_Nemo_1906-03-25.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-03-25.jpg"},{"date":"1906-04-01","title":"April 1, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/a/ae/Little_Nemo_1906-04-01.jpg/960px-Little_Nemo_1906-04-01.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-04-01.jpg"},{"date":"1906-04-08","title":"April 8, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/c/c0/Little_Nemo_1906-04-08.jpg/960px-Little_Nemo_1906-04-08.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-04-08.jpg"},{"date":"1906-04-15","title":"April 15, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/f/ff/Little_Nemo_1906-04-15.jpg/960px-Little_Nemo_1906-04-15.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-04-15.jpg"},{"date":"1906-04-22","title":"April 22, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/3/3c/Little_Nemo_1906-04-22.jpg/960px-Little_Nemo_1906-04-22.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-04-22.jpg"},{"date":"1906-04-29","title":"April 29, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/0/01/Little_Nemo_1906-04-29.jpg/960px-Little_Nemo_1906-04-29.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-04-29.jpg"},{"date":"1906-05-06","title":"May 6, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/a/a2/Little_Nemo_1906-05-06.jpg/960px-Little_Nemo_1906-05-06.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-05-06.jpg"},{"date":"1906-05-13","title":"May 13, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/6/68/Little_Nemo_1906-05-13.jpg/960px-Little_Nemo_1906-05-13.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-05-13.jpg"},{"date":"1906-05-20","title":"May 20, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/b/b0/Little_Nemo_1906-05-20.jpg/960px-Little_Nemo_1906-05-20.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-05-20.jpg"},{"date":"1906-05-27","title":"May 27, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/0/03/Little_Nemo_1906-05-27.jpg/960px-Little_Nemo_1906-05-27.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-05-27.jpg"},{"date":"1906-06-03","title":"June 3, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/7/7e/Little_Nemo_1906-06-03.jpg/960px-Little_Nemo_1906-06-03.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-06-03.jpg"},{"date":"1906-06-10","title":"June 10, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/8/8f/Little_Nemo_1906-06-10.jpg/960px-Little_Nemo_1906-06-10.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-06-10.jpg"},{"date":"1906-06-24","title":"June 24, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/9/99/Little_Nemo_1906-06-24.jpg/960px-Little_Nemo_1906-06-24.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-06-24.jpg"},{"date":"1906-07-01","title":"July 1, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/b/b3/Little_Nemo_1906-07-01.jpg/960px-Little_Nemo_1906-07-01.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-07-01.jpg"},{"date":"1906-07-08","title":"July 8, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/a/a6/Little_Nemo_1906-07-08.jpg/960px-Little_Nemo_1906-07-08.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-07-08.jpg"},{"date":"1906-07-15","title":"July 15, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/d/db/Little_Nemo_1906-07-15.jpg/960px-Little_Nemo_1906-07-15.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-07-15.jpg"},{"date":"1906-07-22","title":"July 22, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/3/38/Little_Nemo_1906-07-22.jpg/960px-Little_Nemo_1906-07-22.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-07-22.jpg"},{"date":"1906-07-29","title":"July 29, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Little_Nemo_1906-07-29.jpg/960px-Little_Nemo_1906-07-29.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-07-29.jpg"},{"date":"1906-08-05","title":"August 5, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/c/cb/Little_Nemo_1906-08-05.jpg/960px-Little_Nemo_1906-08-05.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-08-05.jpg"},{"date":"1906-08-12","title":"August 12, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/4/46/Little_Nemo_1906-08-12.jpg/960px-Little_Nemo_1906-08-12.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-08-12.jpg"},{"date":"1906-08-19","title":"August 19, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/1/1e/Little_Nemo_1906-08-19.jpg/960px-Little_Nemo_1906-08-19.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-08-19.jpg"},{"date":"1906-08-26","title":"August 26, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/9/93/Little_Nemo_1906-08-26.jpg/960px-Little_Nemo_1906-08-26.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-08-26.jpg"},{"date":"1906-09-02","title":"September 2, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/4/46/Little_Nemo_1906-09-02.jpg/960px-Little_Nemo_1906-09-02.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-09-02.jpg"},{"date":"1906-09-09","title":"September 9, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/e/e9/Little_Nemo_1906-09-09.jpg/960px-Little_Nemo_1906-09-09.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-09-09.jpg"},{"date":"1906-09-16","title":"September 16, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/4/41/Little_Nemo_1906-09-16.jpg/960px-Little_Nemo_1906-09-16.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-09-16.jpg"},{"date":"1906-09-23","title":"September 23, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/e/e8/Little_Nemo_1906-09-23.jpg/960px-Little_Nemo_1906-09-23.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-09-23.jpg"},{"date":"1906-09-30","title":"September 30, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/5/50/Little_Nemo_1906-09-30.jpg/960px-Little_Nemo_1906-09-30.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-09-30.jpg"},{"date":"1906-10-07","title":"October 7, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/d/df/Little_Nemo_1906-10-07.jpg/960px-Little_Nemo_1906-10-07.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-10-07.jpg"},{"date":"1906-10-14","title":"October 14, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/7/7a/Little_Nemo_1906-10-14.jpg/960px-Little_Nemo_1906-10-14.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-10-14.jpg"},{"date":"1906-10-21","title":"October 21, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/0/0b/Little_Nemo_1906-10-21.jpg/960px-Little_Nemo_1906-10-21.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-10-21.jpg"},{"date":"1906-10-28","title":"October 28, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/d/de/Little_Nemo_1906-10-28.jpg/960px-Little_Nemo_1906-10-28.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-10-28.jpg"},{"date":"1906-11-04","title":"November 4, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/1/12/Little_Nemo_1906-11-04.jpg/960px-Little_Nemo_1906-11-04.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-11-04.jpg"},{"date":"1906-11-11","title":"November 11, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/5/5c/Little_Nemo_1906-11-11.jpg/960px-Little_Nemo_1906-11-11.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-11-11.jpg"},{"date":"1906-11-18","title":"November 18, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/2/22/Little_Nemo_1906-11-18.jpg/960px-Little_Nemo_1906-11-18.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-11-18.jpg"},{"date":"1906-11-25","title":"November 25, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/e/e3/Little_Nemo_1906-11-25.jpg/960px-Little_Nemo_1906-11-25.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-11-25.jpg"},{"date":"1906-12-02","title":"December 2, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/d/d8/Little_Nemo_1906-12-02.jpg/960px-Little_Nemo_1906-12-02.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-12-02.jpg"},{"date":"1906-12-09","title":"December 9, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/1/14/Little_Nemo_1906-12-09.jpg/960px-Little_Nemo_1906-12-09.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-12-09.jpg"},{"date":"1906-12-16","title":"December 16, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/6/68/Little_Nemo_1906-12-16.jpg/960px-Little_Nemo_1906-12-16.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-12-16.jpg"},{"date":"1906-12-23","title":"December 23, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/Little_Nemo_1906-12-23.jpg/960px-Little_Nemo_1906-12-23.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-12-23.jpg"},{"date":"1906-12-30","title":"December 30, 1906","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/4/4e/Little_Nemo_1906-12-30.jpg/960px-Little_Nemo_1906-12-30.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1906-12-30.jpg"}]},{"slug":"little-nemo-1907","title":"Little Nemo in Slumberland, 1907","genres":["Fantasy","Adventure"],"views":1100000,"likes":36000,"rating":"4.8","ratingCount":2700,"featured":0,"desc":"Nemo's 1907 adventures, from Befuddle Hall to the trip toward the North Pole. Original Sunday comics by Winsor McCay, published more than a century ago and free to read here.","strips":[{"date":"1907-01-06","title":"January 6, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/c/c6/Little_Nemo_1907-01-06.jpg/960px-Little_Nemo_1907-01-06.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-01-06.jpg"},{"date":"1907-01-13","title":"January 13, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/Little_Nemo_1907-01-13.jpg/960px-Little_Nemo_1907-01-13.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-01-13.jpg"},{"date":"1907-01-20","title":"January 20, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/a/a0/Little_Nemo_1907-01-20.jpg/960px-Little_Nemo_1907-01-20.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-01-20.jpg"},{"date":"1907-01-27","title":"January 27, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/6/63/Little_Nemo_1907-01-27.jpg/960px-Little_Nemo_1907-01-27.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-01-27.jpg"},{"date":"1907-02-03","title":"February 3, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Little_Nemo_1907-02-03.jpg/960px-Little_Nemo_1907-02-03.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-02-03.jpg"},{"date":"1907-02-10","title":"February 10, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/0/08/Little_Nemo_1907-02-10.jpg/960px-Little_Nemo_1907-02-10.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-02-10.jpg"},{"date":"1907-02-17","title":"February 17, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/c/cf/Little_Nemo_1907-02-17.jpg/960px-Little_Nemo_1907-02-17.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-02-17.jpg"},{"date":"1907-02-24","title":"February 24, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/d/d6/Little_Nemo_1907-02-24.jpg/960px-Little_Nemo_1907-02-24.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-02-24.jpg"},{"date":"1907-03-03","title":"March 3, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/Little_Nemo_1907-03-03.jpg/960px-Little_Nemo_1907-03-03.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-03-03.jpg"},{"date":"1907-03-10","title":"March 10, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/b/b1/Little_Nemo_1907-03-10.jpg/960px-Little_Nemo_1907-03-10.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-03-10.jpg"},{"date":"1907-03-17","title":"March 17, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/2/23/Little_Nemo_1907-03-17.jpg/960px-Little_Nemo_1907-03-17.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-03-17.jpg"},{"date":"1907-03-24","title":"March 24, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/2/2c/Little_Nemo_1907-03-24.jpg/960px-Little_Nemo_1907-03-24.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-03-24.jpg"},{"date":"1907-03-31","title":"March 31, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/d/d6/Little_Nemo_1907-03-31.jpg/960px-Little_Nemo_1907-03-31.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-03-31.jpg"},{"date":"1907-04-07","title":"April 7, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/e/e8/Little_Nemo_1907-04-07.jpg/960px-Little_Nemo_1907-04-07.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-04-07.jpg"},{"date":"1907-04-14","title":"April 14, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/0/01/Little_Nemo_1907-04-14.jpg/960px-Little_Nemo_1907-04-14.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-04-14.jpg"},{"date":"1907-04-21","title":"April 21, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Little_Nemo_1907-04-21.jpg/960px-Little_Nemo_1907-04-21.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-04-21.jpg"},{"date":"1907-04-28","title":"April 28, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/a/aa/Little_Nemo_1907-04-28.jpg/960px-Little_Nemo_1907-04-28.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-04-28.jpg"},{"date":"1907-05-05","title":"May 5, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/Little_Nemo_1907-05-05.jpg/960px-Little_Nemo_1907-05-05.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-05-05.jpg"},{"date":"1907-05-12","title":"May 12, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/1/16/Little_Nemo_1907-05-12.jpg/960px-Little_Nemo_1907-05-12.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-05-12.jpg"},{"date":"1907-05-19","title":"May 19, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/f/f1/Little_Nemo_1907-05-19.jpg/960px-Little_Nemo_1907-05-19.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-05-19.jpg"},{"date":"1907-05-26","title":"May 26, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/Little_Nemo_1907-05-26.jpg/960px-Little_Nemo_1907-05-26.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-05-26.jpg"},{"date":"1907-06-02","title":"June 2, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Little_Nemo_1907-06-02.jpg/960px-Little_Nemo_1907-06-02.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-06-02.jpg"},{"date":"1907-06-09","title":"June 9, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/a/aa/Little_Nemo_1907-06-09.jpg/960px-Little_Nemo_1907-06-09.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-06-09.jpg"},{"date":"1907-06-16","title":"June 16, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/f/fe/Little_Nemo_1907-06-16.jpg/960px-Little_Nemo_1907-06-16.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-06-16.jpg"},{"date":"1907-06-23","title":"June 23, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/7/7e/Little_Nemo_1907-06-23.jpg/960px-Little_Nemo_1907-06-23.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-06-23.jpg"},{"date":"1907-06-30","title":"June 30, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/7/76/Little_Nemo_1907-06-30.jpg/960px-Little_Nemo_1907-06-30.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-06-30.jpg"},{"date":"1907-07-07","title":"July 7, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/a/aa/Little_Nemo_1907-07-07.jpg/960px-Little_Nemo_1907-07-07.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-07-07.jpg"},{"date":"1907-07-14","title":"July 14, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/9/98/Little_Nemo_1907-07-14.jpg/960px-Little_Nemo_1907-07-14.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-07-14.jpg"},{"date":"1907-07-21","title":"July 21, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/4/48/Little_Nemo_1907-07-21.jpg/960px-Little_Nemo_1907-07-21.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-07-21.jpg"},{"date":"1907-07-28","title":"July 28, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/7/7e/Little_Nemo_1907-07-28.jpg/960px-Little_Nemo_1907-07-28.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-07-28.jpg"},{"date":"1907-08-04","title":"August 4, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/a/a6/Little_Nemo_1907-08-04.jpg/960px-Little_Nemo_1907-08-04.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-08-04.jpg"},{"date":"1907-08-11","title":"August 11, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/b/b3/Little_Nemo_1907-08-11.jpg/960px-Little_Nemo_1907-08-11.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-08-11.jpg"},{"date":"1907-08-18","title":"August 18, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/a/a2/Little_Nemo_1907-08-18.jpg/960px-Little_Nemo_1907-08-18.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-08-18.jpg"},{"date":"1907-08-25","title":"August 25, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/8/89/Little_Nemo_1907-08-25.jpg/960px-Little_Nemo_1907-08-25.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-08-25.jpg"},{"date":"1907-09-01","title":"September 1, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/5/5c/Little_Nemo_1907-09-01.jpg/960px-Little_Nemo_1907-09-01.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-09-01.jpg"},{"date":"1907-09-08","title":"September 8, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/8/8f/Little_Nemo_1907-09-08.jpg/960px-Little_Nemo_1907-09-08.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-09-08.jpg"},{"date":"1907-09-15","title":"September 15, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/Little_Nemo_1907-09-15.jpg/960px-Little_Nemo_1907-09-15.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-09-15.jpg"},{"date":"1907-09-22","title":"September 22, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/6/64/Little_Nemo_1907-09-22.jpg/960px-Little_Nemo_1907-09-22.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-09-22.jpg"},{"date":"1907-09-29","title":"September 29, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/d/df/Little_Nemo_1907-09-29.jpg/960px-Little_Nemo_1907-09-29.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-09-29.jpg"},{"date":"1907-10-06","title":"October 6, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/b/b2/Little_Nemo_1907-10-06.jpg/960px-Little_Nemo_1907-10-06.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-10-06.jpg"},{"date":"1907-10-13","title":"October 13, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/Little_Nemo_1907-10-13.jpg/960px-Little_Nemo_1907-10-13.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-10-13.jpg"},{"date":"1907-10-20","title":"October 20, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/7/78/Little_Nemo_1907-10-20.jpg/960px-Little_Nemo_1907-10-20.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-10-20.jpg"},{"date":"1907-10-27","title":"October 27, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/4/4a/Little_Nemo_1907-10-27.jpg/960px-Little_Nemo_1907-10-27.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-10-27.jpg"},{"date":"1907-11-03","title":"November 3, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/Little_Nemo_1907-11-03.jpg/960px-Little_Nemo_1907-11-03.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-11-03.jpg"},{"date":"1907-11-10","title":"November 10, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/1/16/Little_Nemo_1907-11-10.jpg/960px-Little_Nemo_1907-11-10.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-11-10.jpg"},{"date":"1907-11-17","title":"November 17, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/7/72/Little_Nemo_1907-11-17.jpg/960px-Little_Nemo_1907-11-17.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-11-17.jpg"},{"date":"1907-11-24","title":"November 24, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/7/7e/Little_Nemo_1907-11-24.jpg/960px-Little_Nemo_1907-11-24.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-11-24.jpg"},{"date":"1907-12-01","title":"December 1, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/c/c2/Little_Nemo_1907-12-01.jpg/960px-Little_Nemo_1907-12-01.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-12-01.jpg"},{"date":"1907-12-08","title":"December 8, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/7/74/Little_Nemo_1907-12-08.jpg/960px-Little_Nemo_1907-12-08.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-12-08.jpg"},{"date":"1907-12-15","title":"December 15, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/a/a8/Little_Nemo_1907-12-15.jpg/960px-Little_Nemo_1907-12-15.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-12-15.jpg"},{"date":"1907-12-22","title":"December 22, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/d/d3/Little_Nemo_1907-12-22.jpg/960px-Little_Nemo_1907-12-22.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-12-22.jpg"},{"date":"1907-12-29","title":"December 29, 1907","url":"https://upload.wikimedia.org/wikipedia/commons/thumb/a/a1/Little_Nemo_1907-12-29.jpg/960px-Little_Nemo_1907-12-29.jpg","source":"https://commons.wikimedia.org/wiki/File:Little_Nemo_1907-12-29.jpg"}]}];
+const GENC=['#E8930C','#22635A','#9C4A8C','#B9402F','#3B6EA5','#6B7F2E','#8A5A2B','#5B4B8A','#2B8A6F','#C2622B','#4A6FA5','#A5486B','#52796F','#8B6F3E','#7A4E8C'];
+
+/* ---------------- seed content ---------------- */
+const GENRES=['Romance','Fantasy','Action','Adventure','Drama','Comedy','Horror','Mystery','Sci-Fi','Slice of Life','Manga','BL','GL','Thriller','Historical','Young Adult'];
+const MANGA_LINKS=[
+  {title:'MARRIAGETOXIN',creator:'Joumyaku / Mizuki Yoda',id:'100190',image:'https://s4.anilist.co/file/anilistcdn/media/manga/cover/large/bx147329-ZaM4EOAn0Bgn.jpg',desc:'A hitman who has never been to school must get married to save his clan, with a marriage swindler as his only guide.'},
+  {title:'Make the Exorcist Fall in Love',creator:'Aruma Arima / Masuku Fukayama',id:'100198',image:'https://s4.anilist.co/file/anilistcdn/media/manga/cover/large/bx143516-kIK4iJpcCH30.jpg',desc:'The world’s strongest exorcist only wants to bake sweets, until a girl walks into his life in the middle of a war with demons.'},
+  {title:'Evangeline Puts on Shoes',creator:'Ryosuke Asakura',id:'100825',image:'https://s4.anilist.co/file/anilistcdn/media/manga/cover/large/bx216884-ZjkyomzbmWdU.png',desc:'The school’s most popular actress hides the pain in her feet. Only her classmate, a future shoemaker, can see it.'},
+  {title:'Twilight Blade',creator:'Chiyoko Maruume / Tokegoro',id:'100766',image:'https://s4.anilist.co/file/anilistcdn/media/manga/cover/large/bx213070-dbUlgrZNkiTx.jpg',desc:'After a fire takes his mother, Hikari lives with the investigator on the case while otherworldly creatures keep appearing.'},
+  {title:'KAKAKAKA',creator:'Mukade Makino',id:'100815',image:'https://s4.anilist.co/file/anilistcdn/media/manga/cover/large/bx215957-irroAqh8iERg.png',desc:'Two brothers with no official identity scrape by, until the elder sits the imperial exams in another boy’s place.'},
+  {title:'Choujin X',creator:'Sui Ishida',id:'100160',image:'https://s4.anilist.co/file/anilistcdn/media/manga/cover/large/bx126693-hEqUWtBfUHyc.jpg',desc:'When a superhuman choujin attacks, ordinary Tokio finally gets a chance to step out of his best friend’s shadow.'},
+  {title:'Slap Shot Girls',creator:'Alpa',id:'100826',image:'https://s4.anilist.co/file/anilistcdn/media/manga/cover/large/bx217478-icWkaKNi9Z02.jpg',desc:'Heartbroken after a move to Hokkaido, Kurumi joins a girls’ ice hockey team and starts over on the ice.'},
+  {title:'Noisering',creator:'Kanya Aki / Tsubasa',id:'100817',image:'https://s4.anilist.co/file/anilistcdn/media/manga/cover/large/bx216202-mOaS2vZAwUlk.png',desc:'A month after a massive earthquake, a blind sonarman helps a research crew listen for whatever caused it.'},
+  {title:'One Piece',creator:'Eiichiro Oda',id:'100020',image:'https://s4.anilist.co/file/anilistcdn/media/manga/cover/large/bx30013-BeslEMqiPhlk.jpg',desc:'Luffy ate the Gum-Gum Fruit and set sail to become King of the Pirates and find the legendary One Piece.'},
+  {title:'SAKAMOTO DAYS',creator:'Yuto Suzuki',id:'100127',image:'https://s4.anilist.co/file/anilistcdn/media/manga/cover/large/bx125828-p78Z8SflkfmO.jpg',desc:'The legendary hitman retired for love and now runs a store. His old world is not done with him.'}
+];
+function mangaCard(m){const href=`https://mangaplus.shueisha.co.jp/titles/${m.id}`;return `<div class="scard"><a href="${href}" target="_blank" rel="noopener noreferrer"><div class="cov"><img loading="lazy" src="${esc(m.image)}" alt="${esc(m.title)} cover"><span class="tbadge manga">MANGA</span><div class="cov-ov"><h4>${esc(m.title)}</h4><span class="a">${esc(m.creator)}</span><p class="desc">${esc(m.desc)}</p></div></div></a><a class="ti" href="${href}" target="_blank" rel="noopener noreferrer">${esc(m.title)}</a><div class="au">${esc(m.creator)}</div></div>`}
+function mangaDirectory(){return `<div class="grid">${MANGA_LINKS.map(mangaCard).join('')}</div>`}
+const NTITLES=['The Beginning of Something New','A Strange Encounter','Into the Unknown','What the Rain Said','The Long Way Home','Smoke and Salt','Every Letter, Unsent','The Kingdom Shifts','A Door Left Open','Where the Light Gets In','The Quiet Hours','Tomorrow, Remembered','The Weight of Names','Halfway to Anywhere'];
+const CTITLES=['The Beginning','A Strange Encounter','Into the Unknown','Rain, Again','Aftermath','The Offer','Static','Small Fires','The Long Night','Homecoming','Undertow','Signal Lost','What Grows in the Dark','Overlapping Hearts','The Turn','Loose Threads','Low Tide','The Quiet Part'];
+const POOL=["The morning arrived the way difficult things often do — quietly, and without asking permission. She counted the coins on the windowsill twice, then a third time, as if arithmetic might take pity on her.","Rain had been falling since Tuesday, and the whole street had begun to dream in grey. Somewhere under the awning of the closed bakery, a cat watched the puddles with the patience of a landlord.","He had rehearsed the conversation eleven times on the way over. None of the rehearsals survived contact with the actual doorway, where she stood holding two cups and an expression he couldn't read.","There is a particular silence that lives inside libraries at closing time — the sound of a thousand unfinished stories holding their breath. She had always found it comforting. Tonight it felt like an accusation.","The map was older than the kingdom it described, which, the old man pointed out cheerfully, was exactly what made it useful. Borders forget themselves. Rivers rarely do.","Outside, the city hummed its low electric note — the one you stop hearing after the first week and spend the rest of your life trying to hear again.","She wrote his name on the fogged glass of the train window, watched it run as the condensation gave way, and decided that this, too, was a kind of letter.","The lighthouse had been automated for thirty years, but the keeper's daughter still climbed it every Sunday, out of loyalty to a routine rather than a job.","You could measure the seasons here by the smell of the harbour: salt and diesel in winter, rope and melon in summer, and always, underneath it, the faint sweet rot of possibilities.","\"Whatever you do,\" he said, pressing the lantern into her hands, \"don't count the shadows. They hate being counted, and they always know when you've reached eleven.\""];
+const OPENINGS=["In the year the whales came up the river, everything the town believed about itself turned out to be a rough draft. This is the story of the second draft.","Nobody in Marrow Bay said the word 'vanished' out loud. They said 'gone ahead', or 'travelling', or — if they were religious — 'called'. Nine-year-old Ada Voss said none of these. Ada made lists."];
+const CMTPOOL=["I was NOT emotionally prepared for this chapter.","The way this is drawn is unreal. I can feel the weather.","Came for the story, staying for the background cats.","Rereading this for the third time and it still hits.","Okay but the dialogue in this scene?? Chef's kiss.","I checked three times this week for an update. Worth it.","The pacing here is so good — nothing feels rushed.","Protect this character at all costs.","That twist made me gasp on the train. Thanks for that.","This comment section is half the experience. Great crowd."];
+const POSTS=[['Discussion',"Which webcomic made you cry first? Mine was a slice-of-life about a failing noodle shop that I will not name, because I'm still not over it."],['Recommendation',"If you liked The Last Guardian, try Salt & Starlight — same sense of scale, completely different heart. You're welcome."],['Fan Art',"Painted the lighthouse from Chapter 9! Took the whole weekend, zero regrets. The messy sketch is pinned on my profile."],['Question',"Writers: do you outline, or discover as you go? I've tried both and mostly I just panic productively."],['Announcement',"Marigold Season is officially COMPLETED as of today. 84 chapters, three years, one very tired author. Thank you for reading it with me."],['Discussion',"Unpopular opinion: chapter titles are an underrated art form. Drop your favourites below."]];
+
+function seedDB(){
+  const users=[
+    {id:'u_mccay',username:'mccay',name:'Winsor McCay',role:'creator',verified:1,color:'#C2410C',bio:'Cartoonist of Little Nemo in Slumberland. The Sunday pages on this shelf were published in 1905–1907 and are in the public domain.',fBase:86000,links:['https://commons.wikimedia.org/wiki/Winsor_McCay']},
+    {id:'u_mira',username:'mira',name:'Mira Chen',role:'creator',verified:1,color:'#E8930C',bio:'Drawing rainy days and warm endings. Moonlight After Rain updates every Friday. Drink water, hug your friends.',fBase:48200,links:['instagram.com/miradraws']},
+    {id:'u_tomas',username:'tomas',name:'Tomás Vela',role:'creator',verified:1,color:'#22635A',bio:'Fantasy & action with soft centres. The Last Guardian / Paper Tigers / The Wolf Road.',fBase:31800,links:['tomasvela.art']},
+    {id:'u_june',username:'june',name:'June Wood',role:'creator',verified:0,color:'#9C4A8C',bio:'I write big skies and small disasters. Currently: The Kingdom Beyond the Clouds.',fBase:12700,links:[]},
+    {id:'u_ruby',username:'ruby',name:'Ruby Okafor',role:'creator',verified:1,color:'#3B6EA5',bio:'Letters, maps, mysteries. I collect postcards and unfinished sentences.',fBase:27400,links:['rubyokafor.com']},
+    {id:'u_kaito',username:'kaito',name:'Kaito Mori',role:'creator',verified:0,color:'#B9402F',bio:'Neon, ghosts, and everything in between.',fBase:22900,links:[]},
+    {id:'u_nell',username:'nell',name:'Nelli Verhoeven',role:'creator',verified:0,color:'#6B7F2E',bio:'Sci-fi for people who cry at sunsets.',fBase:9800,links:[]},
+    {id:'u_reader',username:'sam',name:'Sam Rivera',role:'user',verified:0,color:'#8A5A2B',bio:'Professional lurker. Will recommend you a webcomic unprompted.',fBase:12,links:[]},
+    {id:'u_admin',username:'keeper',name:'The Keeper',role:'admin',verified:1,color:'#28221A',bio:'Keeping the lamps lit at Hatch HQ.',fBase:1,links:[]}
+  ];
+  const SS=[
+    ['moonlight-after-rain','Moonlight After Rain','comic','u_mira',['Romance','Slice of Life'],'ongoing',1,'A part-time barista, a full-time ghost of her former self, and the tiny ramen shop where their shifts keep overlapping. Some feelings steep slower than tea.'],
+    ['the-last-guardian','The Last Guardian','comic','u_tomas',['Fantasy','Action'],'ongoing',1,'The kingdom fell ninety years ago. Somebody forgot to tell its last guard. A sweeping fantasy about duty, moss, and the slow return of hope.'],
+    ['neon-hearts','Neon Hearts','comic','u_kaito',['Sci-Fi','Romance'],'ongoing',0,'In a city that never powers down, two rival courier drones develop an unscheduled fondness for each other.'],
+    ['echoes-of-tomorrow','Echoes of Tomorrow','comic','u_nell',['Mystery','Sci-Fi'],'ongoing',1,'Every morning, Nour wakes up with a memory of a day that hasn\'t happened yet. This one ends badly.'],
+    ['salt-and-starlight','Salt & Starlight','comic','u_mira',['Adventure','Fantasy'],'completed',0,'A cartographer\'s apprentice sails past the edge of the map and finds the one thing no chart can hold. Complete in 60 chapters.'],
+    ['howlers-inn','Howler\'s Inn','comic','u_june',['Fantasy','Comedy'],'ongoing',0,'The only inn at the crossroads of three realms, staffed entirely by people who failed at being legendary.'],
+    ['paper-tigers','Paper Tigers','comic','u_tomas',['Action','Drama'],'hiatus',0,'Two sisters inherit their father\'s debt, his dojo, and his enemies — in reverse order of danger.'],
+    ['cartographers-daughter','The Cartographer\'s Daughter','comic','u_ruby',['Historical','Adventure'],'completed',0,'1798. She maps a coastline that keeps rearranging itself, and the Crown wants to know why.'],
+    ['kingdom-beyond-clouds','The Kingdom Beyond the Clouds','novel','u_june',['Fantasy','Adventure'],'ongoing',1,'Above the storm line there is a country that repairs itself every night. Wren is the first outsider in four hundred years to be invited up — and someone up there wants her to fail.'],
+    ['letters-never-sent','Letters Never Sent','novel','u_ruby',['Romance','Drama'],'ongoing',0,'For eleven years, Ada has written to the address that ruined her family. Now someone is writing back.'],
+    ['girl-who-remembered','The Girl Who Remembered Tomorrow','novel','u_nell',['Sci-Fi','Mystery'],'completed',0,'Memory works backwards for everyone except Marguerite Osei. A quiet, devastating debut about causality and second chances. Complete.'],
+    ['cup-of-ghosts','A Cup of Ghosts','novel','u_kaito',['Horror','Mystery'],'ongoing',0,'The tea house serves the living on Tuesdays. The other six days are... busier.'],
+    ['marigold-season','Marigold Season','novel','u_mira',['Romance','Slice of Life'],'completed',0,'Three summers at a flower farm, one slow-burn promise, and every single thing that grows back.'],
+    ['the-wolf-road','The Wolf Road','novel','u_tomas',['Thriller','Fantasy'],'ongoing',0,'Follow the road, mind the mile-stones, and never — ever — accept a lift from anything that asks twice.'],
+    ['ninth-lantern','Ninth Lantern','novel','u_kaito',['Horror','Thriller'],'hiatus',0,'The festival ends when the ninth lantern goes out. This year, it went out early.'],
+    ['chalk-marks','Chalk Marks','novel','u_ruby',['Mystery','Drama'],'ongoing',0,'A detective who can\'t remember faces and a witness who can\'t forget them work a case that erases itself.']
+  ];
+  const stories=[],chapters=[];
+  SS.forEach((s,i)=>{
+    const r=det(s[0]);
+    const nch=s[2]==='comic'?8+Math.floor(r()*16):10+Math.floor(r()*22);
+    const st={id:'s_'+s[0],slug:s[0],type:s[2],author:s[3],title:s[1],genres:s[4],status:s[5],featured:!!s[6],desc:s[7],
+      tags:s[4].map(g=>g.toLowerCase()),lang:'English',views:12000+Math.floor(r()*880000),likeBase:800+Math.floor(r()*38000),
+      rating:(3.9+r()*1).toFixed(1),ratingCount:200+Math.floor(r()*9000),premium:r()>.7,
+      createdAt:NOW-(90+i*9)*DAY,updAt:NOW-(i%7)*DAY-Math.floor(r()*DAY),published:true,deleted:false};
+    stories.push(st);
+    for(let c=1;c<=nch;c++){
+      const ch={id:`c_${s[0]}_${c}`,storyId:st.id,num:c,published:true,deleted:false,
+        title:(s[2]==='comic'?CTITLES:NTITLES)[(c-1)%(s[2]==='comic'?CTITLES:NTITLES).length]||('Chapter '+c),
+        at:NOW-(nch-c)*(5+Math.floor(r()*4))*DAY};
+      if(s[2]==='comic'){const pageCount=4+Math.floor(r()*7);ch.pages=Array.from({length:pageCount},(_,p)=>comicArtwork(st,(c-1)*11+p).url)}
+      else{ch.content=novelBody(s[0]+'-'+c)}
+      chapters.push(ch);
+    }
+  });
+  PUBLIC_COMICS.forEach(book=>{
+    const first=book.strips[0],last=book.strips.at(-1);
+    const st={id:'s_'+book.slug,slug:book.slug,type:'comic',author:'u_mccay',title:book.title,genres:book.genres,status:'completed',featured:!!book.featured,desc:book.desc,
+      tags:['public domain','classic comic'],lang:'English',views:book.views,likeBase:book.likes,rating:book.rating,ratingCount:book.ratingCount,premium:false,
+      cover:first.url,license:'public-domain',createdAt:Date.parse(first.date+'T12:00:00Z'),updAt:Date.parse(last.date+'T12:00:00Z'),published:true,deleted:false};
+    stories.push(st);
+    book.strips.forEach((strip,i)=>{
+      chapters.push({id:`c_${book.slug}_${i+1}`,storyId:st.id,num:i+1,published:true,deleted:false,
+        title:strip.title,at:Date.parse(strip.date+'T12:00:00Z'),pages:[strip.url],
+        pageCredit:{title:strip.title,artist:'Winsor McCay',source:strip.source}});
+    });
+  });
+  const posts=POSTS.map((p,i)=>({id:'p_'+i,userId:users[i%6].id,type:p[0],text:p[1],likes:[['u_reader','u_admin','u_mira','u_june'][i%4]],at:NOW-(i+1)*1.4*DAY,deleted:false}));
+  const comments=[];
+  stories.slice(0,12).forEach((s,si)=>{
+    const n=2+Math.floor(det(s.slug)()*5);
+    for(let k=0;k<n;k++){const r=det(s.slug+k);
+      const u=users[Math.floor(r()*6)];
+      comments.push({id:`cm_${si}_${k}`,target:'story',targetId:s.id,userId:u.id,text:CMTPOOL[Math.floor(r()*CMTPOOL.length)],parentId:null,likes:[],at:NOW-(k+1)*2.2*DAY,deleted:false});
+    }
+  });
+  comments.push({id:'cm_r1',target:'story',targetId:stories[0].id,userId:'u_reader',text:'Found this last night and read until 3am. No regrets, only feelings.',parentId:null,likes:['u_mira'],at:NOW-3*DAY,deleted:false});
+  comments.push({id:'cm_r2',target:'post',targetId:'p_1',userId:'u_reader',text:'Seconding this so hard. The ending wrecked me in the best way.',parentId:null,likes:[],at:NOW-2*DAY,deleted:false});
+  const reports=[
+    {id:'r_1',targetType:'comment',targetId:'cm_0_1',reporter:'u_reader',reason:'Spam',details:'Posting the same promo link on every chapter.',status:'pending',at:NOW-1.1*DAY},
+    {id:'r_2',targetType:'story',targetId:stories[6].id,reporter:'u_june',reason:'Copyright',details:'Chapter art looks reposted from another artist.',status:'pending',at:NOW-2*DAY},
+    {id:'r_3',targetType:'user',targetId:'u_kaito',reporter:'u_reader',reason:'Harassment',details:'DMs after a comment thread got heated.',status:'pending',at:NOW-3*DAY}
+  ];
+  return {users,stories,chapters,posts,comments,reports,
+    genres:[...GENRES],
+    follows:{'u_reader:u_mira':1,'u_reader:u_june':1},
+    libs:{'u_reader:s_moonlight-after-rain':1,'u_reader:s_kingdom-beyond-clouds':1},
+    likes:{},
+    progress:{'u_reader:s_moonlight-after-rain':{ch:4,pct:.62,at:NOW-2*DAY},'u_reader:s_kingdom-beyond-clouds':{ch:7,pct:.35,at:NOW-DAY}},
+    prefs:{},
+    notifs:{
+      u_reader:[{id:'n1',type:'chapter',text:'Mira Chen posted a new chapter of Moonlight After Rain.',link:'#/story/s_moonlight-after-rain',read:false,at:NOW-6e6},{id:'n2',type:'follow',text:'June Wood followed you back. Small internet.',link:'#/creator/june',read:false,at:NOW-2*DAY}],
+      u_admin:[{id:'n3',type:'report',text:'3 new reports are waiting for review.',link:'#/admin/reports',read:false,at:NOW-4e6}],
+      u_mira:[{id:'n4',type:'like',text:'Sam Rivera liked Moonlight After Rain.',link:'#/story/s_moonlight-after-rain',read:true,at:NOW-3*DAY}]
+    },
+    meta:{brand:'Hatch',accent:'#E8930C'}
+  };
+}
+function novelBody(seed){
+  const r=det(seed);const ps=[];ps.push(OPENINGS[Math.floor(r()*OPENINGS.length)]);
+  const pool=[...POOL];for(let i=pool.length-1;i>0;i--){const j=Math.floor(r()*(i+1));[pool[i],pool[j]]=[pool[j],pool[i]]}
+  const n=4+Math.floor(r()*3);for(let i=0;i<n;i++)ps.push(pool[i%pool.length]);
+  return ps.map(p=>'<p>'+esc(p)+'</p>').join('');
+}
+
+/* ---------------- DB layer (swap with REST client for prod) ---------------- */
+const DBKEY='hatch_db_v4',SESSKEY='hatch_sess_v3';
+let DB,me=null,cleanups=[];
+try{DB=JSON.parse(localStorage.getItem(DBKEY))||seedDB()}catch(e){DB=seedDB()}
+let saveT;function save(){clearTimeout(saveT);saveT=setTimeout(()=>{try{localStorage.setItem(DBKEY,JSON.stringify(DB))}catch(e){toast('Storage full — uploaded images kept for this session only','alert-triangle')}},250)}
+me=DB.users.find(u=>u.id===localStorage.getItem(SESSKEY))||null;
+if(!Array.isArray(DB.genres))DB.genres=[...GENRES];
+if(!DB.genres.includes('Manga')){DB.genres.push('Manga');save()}
+const db={
+  // GET /api/stories?filter...
+  stories(){return DB.stories.filter(s=>!s.deleted&&(s.published||isMine(s)||isAdmin()))},
+  story(id){return this.stories().find(s=>s.id===id||s.slug===id)},
+  chapters(sid){return DB.chapters.filter(c=>c.storyId===sid&&!c.deleted).sort((a,b)=>a.num-b.num)},
+  user(id){return DB.users.find(u=>u.id===id)},
+  byName(u){return DB.users.find(x=>x.username===u)},
+  likes(s){return (DB.likes[s.id]||[]).length+s.likeBase},
+  followers(u){return (Object.keys(DB.follows).filter(k=>k.endsWith(':'+u.id))).length+u.fBase},
+  // POST /api/stories/:id/like
+  toggleLike(sid){DB.likes[sid]=DB.likes[sid]||[];const a=DB.likes[sid],i=a.indexOf(me.id);
+    if(i<0){a.push(me.id);const s=DB.stories.find(x=>x.id===sid);notify(s.author,'like',`${me.name} liked ${s.title}.`,'#/'+s.type+'/'+s.slug)}else a.splice(i,1);save()},
+  // POST /follows
+  toggleFollow(uid){const k=me.id+':'+uid;if(DB.follows[k]){delete DB.follows[k]}else{DB.follows[k]=1;notify(uid,'follow',`${me.name} started following you.`,'#/'+me.role==='user'?'#/creator/'+me.username:'#/studio')}save()},
+  // POST /api/reading/progress
+  setProg(sid,ch,pct){if(!me)return;DB.progress[me.id+':'+sid]={ch,pct,at:Date.now()};save()},
+  prog(sid){return me?DB.progress[me.id+':'+sid]:null},
+  // POST /api/library/:storyId
+  toggleLib(sid){DB.libs[me.id+':'+sid]=!DB.libs[me.id+':'+sid];if(!DB.libs[me.id+':'+sid])delete DB.libs[me.id+':'+sid];save()},
+  inLib(sid){return me&&!!DB.libs[me.id+':'+sid]},
+  // POST /api/community
+  addPost(type,text){DB.posts.unshift({id:'p_'+Date.now(),userId:me.id,type,text,likes:[],at:Date.now(),deleted:false});save()},
+  // POST comments
+  addComment(target,targetId,text,parentId){const c={id:'cm_'+Date.now(),target,targetId,userId:me.id,text,parentId,likes:[],at:Date.now(),deleted:false};DB.comments.push(c);save();
+    if(target==='story'){const s=DB.stories.find(x=>x.id===targetId);if(s&&s.author!==me.id)notify(s.author,'comment',`${me.name} commented on ${s.title}.`,'#/story/'+s.id)}
+    return c},
+  deleteComment(id){const c=DB.comments.find(x=>x.id===id);if(c&&(c.userId===me.id||isAdmin())){c.deleted=true;save();return true}return false},
+  notifs(){return me?(DB.notifs[me.id]||[]):[]},
+};
+function notify(uid,type,text,link){if(uid===me?.id)return;DB.notifs[uid]=DB.notifs[uid]||[];DB.notifs[uid].unshift({id:'n_'+Date.now(),type,text,link,read:false,at:Date.now()});save();renderChrome()}
+const isAdmin=()=>me?.role==='admin';
+const isMine=s=>me&&(s.author===me.id);
+
+/* ---------------- helpers ---------------- */
+function toast(msg,icon='check'){const t=document.createElement('div');t.className='toast';t.innerHTML=`<i data-lucide="${icon}"></i>${esc(msg)}`;$('#toasts').append(t);ic();setTimeout(()=>{t.style.opacity='0';t.style.transition='.4s';setTimeout(()=>t.remove(),400)},2600)}
+function modal(html,w){$('#modalroot').innerHTML=`<div class="ovl" data-act="modalClose"><div class="modal" style="${w?'max-width:'+w+'px':''}">${html}</div></div>`;ic()}
+function closeModal(){$('#modalroot').innerHTML=''}
+function stars(r){return `<span class="stars">★★★★★<span style="width:${r/5*100}%">★★★★★</span></span>`}
+function avatar(u,cls=''){return `<span class="av ${cls}" style="background:${u.color}" title="${esc(u.name)}">${esc(u.name.split(' ').map(x=>x[0]).join('').slice(0,2))}</span>`}
+function vname(u,link=true){return `<b>${link?`<a href="#/creator/${u.username}" class="badgecheck">${esc(u.name)}${u.verified?'<i data-lucide="badge-check" class="vbadge" style="width:15px;height:15px"></i>':''}</a>`:esc(u.name)}</b>`}
+function stPill(s){return `<span class="st ${s}">${s}</span>`}
+function rail(html,id){return `<div class="railwrap"><button class="railbtn l" data-act="rail" data-id="${id}" data-dir="-1"><i data-lucide="chevron-left"></i></button><div class="rail" id="${id}">${html}</div><button class="railbtn r" data-act="rail" data-id="${id}" data-dir="1"><i data-lucide="chevron-right"></i></button></div>`}
+function gcol(g){let h=0;for(const c of g)h=(h*33+c.charCodeAt(0))>>>0;return GENC[h%GENC.length]}
+function gchip(g){return `<a class="gchip" href="#/discover?g=${encodeURIComponent(g)}"><i style="background:${gcol(g)}"></i>${esc(g)}</a>`}
+function coverSrc(s){return s.cover||pic(s.slug+'-cover',400,600)}
+function cover(s,cls=''){const raw=(s.desc||'').replace(/\s+/g,' ').trim();const preview=raw?raw.length>90?raw.slice(0,90)+'…':raw:'A story that keeps unfolding with every chapter.';return `<div class="cov ${cls}"><img loading="lazy" src="${coverSrc(s)}" alt="${esc(s.title)} cover"><span class="tbadge ${s.type}">${s.type.toUpperCase()}</span><button class="bm ${inLib(s.id)?'on':''}" data-act="lib" data-id="${s.id}" title="Bookmark"><i data-lucide="bookmark" style="width:15px;height:15px"></i></button><div class="cov-ov"><h4>${esc(s.title)}</h4><span class="a">${esc(au(s).name)}</span><p class="desc">${esc(preview)}</p></div></div>`}
+function au(s){return db.user(s.author)}
+function inLib(id){return me&&!!DB.libs[me.id+':'+id]}
+function isLiked(id){return me&&(DB.likes[id]||[]).includes(me.id)}
+function isFoll(uid){return me&&!!DB.follows[me.id+':'+uid]}
+function storyCard(s,o={}){
+  const p=o.prog;
+  return `<div class="scard">
+    <a href="#/story/${s.id}">${o.rank?`<span class="rank">${o.rank}</span>`:''}${cover(s)}</a>
+    <a href="#/story/${s.id}" class="ti">${esc(s.title)}</a>
+    <div class="au">${esc(au(s).name)}</div>
+    <div class="mt"><span title="${s.rating} rating" style="display:flex;gap:4px;align-items:center">${stars(+s.rating)} <b style="color:var(--ink2)">${s.rating}</b></span><span style="display:flex;gap:4px;align-items:center"><i data-lucide="eye" style="width:12px;height:12px"></i>${fmt(s.views)}</span><span class="sdot" style="background:${s.status==='ongoing'?'var(--acc)':s.status==='completed'?'var(--teal)':'var(--mauve)'}"></span></div>
+    ${p?`<div class="pbar"><i style="width:${Math.round(p.pct*100)}%"></i></div><div style="font-size:11px;color:var(--mut);margin-top:4px">Ch. ${p.ch} · ${Math.round(p.pct*100)}%</div>`:''}
+  </div>`}
+function statTile(icon,label,val,delta){return `<div class="tile"><div class="tl"><i data-lucide="${icon}"></i>${label}</div><b>${val}</b>${delta?`<div class="delta">${delta}</div>`:''}</div>`}
+/* charts — hand-drawn SVG, interactive via native tooltips */
+function lineChart(data,{w=560,h=170,color='var(--acc)',labels}={}){
+  const max=Math.max(...data)*1.15||1,pad=8;
+  const pts=data.map((v,i)=>[pad+i*(w-pad*2)/(data.length-1),h-14-(v/max)*(h-34)]);
+  const path=pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
+  return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto">
+    ${[.25,.5,.75].map(f=>`<line x1="${pad}" x2="${w-pad}" y1="${14+f*(h-34)}" y2="${14+f*(h-34)}" stroke="var(--line2)"/>`).join('')}
+    <path d="${path} L${pts.at(-1)[0]},${h-14} L${pts[0][0]},${h-14}Z" fill="${color}" opacity=".1"/>
+    <path d="${path}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linecap="round"/>
+    ${pts.map((p,i)=>`<circle cx="${p[0]}" cy="${p[1]}" r="9" fill="transparent"><title>${labels?labels[i]:i} — ${fmt(data[i])}</title></circle>`).join('')}
+    ${pts.map((p,i)=>`<circle cx="${p[0]}" cy="${p[1]}" r="2.6" fill="${color}"/>`).join('')}
+  </svg>`}
+function series(seed,n,base,grow){const r=det(seed);let v=base;return Array.from({length:n},(_,i)=>{v=Math.max(1,v*(1+grow)+ (r()-.45)*base*.25);return Math.round(v)})}
+
+/* ---------------- chrome (header / bottom nav) ---------------- */
+function renderChrome(){
+  const unread=db.notifs().filter(n=>!n.read).length;
+  const path=location.hash.slice(1)||'/';
+  const on=p=>path===p||path.startsWith(p+'/')?'on':'';
+  $('#hdwrap').innerHTML=`<div class="wrap hd-in">
+    <a class="logo" href="#/" aria-label="KUMI — Your reading corner"><img class="kumi-logo" src="kumi-logo-animated.svg" alt="KUMI — Your reading corner"></a>
+    <nav class="nav">
+      <a href="#/" class="${path==='/'?'on':''}">Home</a>
+      <a href="#/discover" class="${on('/discover')||path.startsWith('/comics')||path.startsWith('/novels')?'on':''}">Discover</a>
+      <a href="#/manga" class="${on('/manga')}">Manga</a>
+      <a href="#/community" class="${on('/community')}">Community</a>
+    </nav>
+    <div class="hd-r" style="position:relative">
+      <button class="ibtn" data-act="searchOpen" title="Search"><i data-lucide="search"></i></button>
+      <a class="btn btn-acc btn-sm hd-publish" href="#/studio/new"><i data-lucide="feather" style="width:15px;height:15px"></i>Publish</a>
+      ${me?`<button class="ibtn" data-act="bell" title="Notifications"><i data-lucide="bell"></i><span class="dot">${unread||''}</span></button>
+      <button data-act="umenu" style="border-radius:50%">${avatar(me,'sm')}</button>`
+      :`<button class="btn btn-out btn-sm" data-act="authOpen">Sign in</button>`}
+    </div>
+  </div>
+  <div class="spanel" id="spanel"><div class="wrap">
+    <input id="sinput" placeholder="Search stories, authors, or genres…" autocomplete="off">
+    <div class="sres" id="sres"></div>
+  </div></div>`;
+  $('#bnav').innerHTML=[
+    ['home','Home','#/'],['compass','Discover','#/discover'],['library','Library','#/library'],['users','Community','#/community'],
+    [me?'user':'log-in',me?'Profile':'Sign in',me?'#/me':'SIGNIN']
+  ].map(b=>`<a href="${b[2]==='SIGNIN'?'javascript:void(0)':b[2]}" ${b[2]==='SIGNIN'?'data-act="authOpen"':''} class="${path===b[2].slice(1)?'on':''}"><i data-lucide="${b[0]}"></i>${b[1]}</a>`).join('');
+  ic();
+}
+
+/* ---------------- router ---------------- */
+const guards={library:1,studio:1,admin:1,me:1};
+function route(){
+  cleanups.forEach(f=>f());cleanups=[];
+  const raw=location.hash.slice(1)||'/';const [p,qs]=raw.split('?');const q=new URLSearchParams(qs||'');
+  const seg=p.split('/').filter(Boolean);
+  const V=$('#view');V.className='fadein';window.scrollTo(0,0);
+  const needAuth=()=>{if(!me){openAuth();V.innerHTML=homeHTML();postRender();return false}return true};
+  let out='',mount=null;
+  const a=seg[0];
+  if(!a){out=homeHTML()}
+  else if(a==='discover'){out=discoverHTML(q);mount=dmount}
+  else if(a==='comics'){out=discoverHTML(q,'comic');mount=dmount}
+  else if(a==='novels'){out=discoverHTML(q,'novel');mount=dmount}
+  else if(a==='manga'){out=mangaHTML()}
+  else if(a==='community'){out=communityHTML()}
+  else if(a==='library'){if(!needAuth())return;out=libraryHTML(q.get('t')||'reading')}
+  else if(a==='story'){out=storyHTML(seg[1])}
+  else if(a==='read'){mount=readerMount(seg[1],seg[2],+seg[3]);if(mount===null){out=notFound();mount=null}else return}
+  else if(a==='creator'){out=creatorHTML(seg[1],q)}
+  else if(a==='me'){if(!needAuth())return;location.hash='#/creator/'+me.username;return}
+  else if(a==='studio'){if(!needAuth())return;out=studioHTML(seg)}
+  else if(a==='admin'){if(!needAuth()||!isAdmin()){V.innerHTML=`<div class="wrap"><div class="empty" style="padding-top:100px"><i data-lucide="shield"></i><h3>Admins only</h3><p>This area is restricted to platform administrators.</p></div></div>`;postRender();return}out=adminHTML(seg)}
+  else out=notFound();
+  V.innerHTML=out;postRender();mount&&mount();
+  renderChrome();
+}
+function postRender(){ic();startMovingRails();startHeroBanner();}
+function startMovingRails(){
+  cancelAnimationFrame(window.__railFrame);
+  const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+  $$('.rail').forEach(rail=>{
+    if(!rail.dataset.looped){
+      rail.insertAdjacentHTML('beforeend',rail.innerHTML);
+      rail.dataset.looped='1';
+    }
+    rail.classList.add('moving');
+    const overflow=rail.scrollWidth>rail.clientWidth+4;
+    $$(`[data-id="${rail.id}"]`).forEach(b=>{b.style.display=overflow?'':'none'});
+  });
+  if(reduce)return;
+  const tick=()=>{
+    $$('.rail.moving').forEach(rail=>{
+      if(rail.closest('.railwrap')?.matches(':hover'))return;
+      if(Date.now()<+rail.dataset.pauseUntil)return;
+      const half=rail.scrollWidth/2;
+      if(half<=rail.clientWidth)return;
+      rail.scrollLeft+=0.22;
+      if(rail.scrollLeft>=half)rail.scrollLeft-=half;
+    });
+    window.__railFrame=requestAnimationFrame(tick);
+  };
+  window.__railFrame=requestAnimationFrame(tick);
+}
+function startHeroBanner(){
+  const slides=$$('.hero-banner-slide');
+  if(!slides.length)return;
+  const banner=document.querySelector('.feature-banner');
+  const countEl=document.querySelector('.feature-count');
+  const controls=$$('.feature-arrow');
+  const titleEl=document.getElementById('feature-title');
+  const badgesEl=document.getElementById('feature-badges');
+  const episodeEl=document.getElementById('feature-episode');
+  const descEl=document.getElementById('feature-desc');
+  const copyEl=document.getElementById('feature-copy');
+  let index=0;
+  const syncText=(i)=>{
+    const slide=slides[i];
+    if(!slide||!titleEl||!episodeEl||!descEl||!badgesEl||!copyEl)return;
+    const title=slide.dataset.title||'';
+    const badge1=slide.dataset.badge1||'';
+    const badge2=slide.dataset.badge2||'';
+    const episode=slide.dataset.episode||'';
+    const desc=slide.dataset.desc||'';
+    const bg=slide.dataset.bg||'';
+    if(banner && bg){
+      banner.style.setProperty('--feature-bg-image', `url("${bg}")`);
+    }
+    copyEl.classList.add('is-changing');
+    setTimeout(()=>{
+      titleEl.textContent=title;
+      badgesEl.innerHTML=`<span class="feature-badge ${slide.dataset.href?'manga':'comic'}">${badge1}</span>${badge2?`<span class="feature-badge soft">${badge2}</span>`:''}`;
+      episodeEl.textContent=episode;
+      descEl.textContent=desc;
+      const read=document.getElementById('feature-read');
+      if(read&&slide.dataset.href){read.setAttribute('href',slide.dataset.href);read.setAttribute('target','_blank');read.setAttribute('rel','noopener noreferrer')}
+      else if(read&&slide.dataset.id){read.setAttribute('href','#/story/'+slide.dataset.id);read.removeAttribute('target')}
+      copyEl.classList.remove('is-changing');
+    },180);
+  };
+  const show=(nextIndex)=>{
+    index=(nextIndex+slides.length)%slides.length;
+    slides.forEach((slide,i)=>slide.classList.toggle('active',i===index));
+    if(countEl)countEl.textContent=`${index+1} / ${slides.length}`;
+    syncText(index);
+  };
+  controls.forEach(btn=>{
+    btn.onclick=()=>show(btn.dataset.heroNav==='next'?index+1:index-1);
+  });
+  clearInterval(window.__heroBannerTimer);
+  window.__heroBannerTimer=setInterval(()=>show(index+1),2600);
+  show(0);
+}
+window.addEventListener('hashchange',route);
+function notFound(){return `<div class="wrap"><div class="empty" style="padding:110px 20px"><i data-lucide="map"></i><h3>Lost in the story</h3><p>We couldn't find that page. It may have been unpublished or removed.</p><a class="btn btn-ink" style="margin-top:18px" href="#/">Back home</a></div></div>`}
+
+/* ================= HOME ================= */
+function homeHTML(){
+  const S=db.stories();
+  const by=(f,a)=>[...S].sort(f).slice(0,a);
+  const trending=by((x,y)=>y.views-x.views,10);
+  const cont=me?Object.entries(DB.progress).filter(([k])=>k.startsWith(me.id+':')).map(([k,p])=>({s:DB.stories.find(x=>x.id===k.split(':')[1]),p})).filter(x=>x.s):[];
+  const rec=recommend();
+  const comics=by((x,y)=>y.views-x.views,10).filter(s=>s.type==='comic');
+  const novels=by((x,y)=>y.views-x.views,10).filter(s=>s.type==='novel');
+  const fresh=by((x,y)=>y.updAt-x.updAt,12);
+  const creators=DB.users.filter(u=>u.role==='creator').sort((a,b)=>db.followers(b)-db.followers(a)).slice(0,6);
+  const done=S.filter(s=>s.status==='completed').sort((a,b)=>b.views-a.views).slice(0,5);
+  const classics=S.filter(s=>s.license==='public-domain');
+  const featured=MANGA_LINKS[0];
+  return `
+  <section class="wrap hero hero-feature">
+    <div class="feature-banner" aria-label="Featured manga banner" style="--feature-bg-image:url('${featured.image}')">
+      <div class="feature-banner-grid">
+        <div class="feature-copy" id="feature-copy">
+          <h2 id="feature-title">${esc(featured.title)}</h2>
+          <div class="feature-badges" id="feature-badges">
+            <span class="feature-badge manga">Manga</span>
+            <span class="feature-badge soft">Free</span>
+          </div>
+          <div class="feature-episode" id="feature-episode">${esc(featured.creator)}</div>
+          <p id="feature-desc">${esc(featured.desc)}</p>
+          <div class="feature-actions">
+            <a class="btn btn-acc" id="feature-read" href="https://mangaplus.shueisha.co.jp/titles/${featured.id}" target="_blank" rel="noopener noreferrer"><i data-lucide="play"></i>Read</a>
+            <a class="btn btn-out" href="#/manga"><i data-lucide="library"></i>All manga</a>
+          </div>
+        </div>
+        <div class="feature-art">
+          <div class="hero-banner-shell">
+            <div class="hero-banner-frame">
+              ${MANGA_LINKS.map((m,i)=>`<div class="hero-banner-slide ${i===0?'active':''}" data-hero-slide="${i}" data-href="https://mangaplus.shueisha.co.jp/titles/${m.id}" data-title="${esc(m.title)}" data-bg="${esc(m.image)}" data-badge1="Manga" data-badge2="Free" data-episode="${esc(m.creator)}" data-desc="${esc(m.desc)}"><img src="${esc(m.image)}" alt="${esc(m.title)}"></div>`).join('')}
+            </div>
+          </div>
+          <div class="feature-controls">
+            <button class="feature-arrow" data-hero-nav="prev" aria-label="Previous slide"><i data-lucide="chevron-left"></i></button>
+            <span class="feature-count">1 / ${MANGA_LINKS.length}</span>
+            <button class="feature-arrow" data-hero-nav="next" aria-label="Next slide"><i data-lucide="chevron-right"></i></button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  <div class="wrap">
+    ${classics.length?`<section class="sect"><div class="shead"><div><span class="eyebrow">Free to read</span><h2>Classic comics</h2></div><a class="more" href="#/comics">See all <i data-lucide="arrow-right" style="width:14px;height:14px"></i></a></div>
+      ${rail(classics.map(s=>storyCard(s)).join(''),'r-classic')}</section>`:''}
+    <section class="sect"><div class="shead"><div><span class="eyebrow">Official and free</span><h2>Anime manga</h2></div><a class="more" href="#/manga">See all <i data-lucide="arrow-right" style="width:14px;height:14px"></i></a></div>
+      ${rail(MANGA_LINKS.map(mangaCard).join(''),'r-manga')}</section>
+    ${cont.length?`<section class="sect"><div class="shead"><div><span class="eyebrow">Pick up where you left off</span><h2>Continue Reading</h2></div></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:14px">
+      ${cont.map(({s,p})=>`<a class="cr" href="#/read/${s.type}/${s.id}/${p.ch}"><img class="cthumb" src="${coverSrc(s)}"><div style="flex:1"><b style="font-family:var(--fd);font-size:16px">${esc(s.title)}</b><div style="font-size:12.5px;color:var(--mut);margin:3px 0 9px">Chapter ${p.ch} · ${Math.round(p.pct*100)}% completed</div><div class="pbar" style="margin:0"><i style="width:${p.pct*100}%"></i></div></div><span class="btn btn-ink btn-sm">Resume</span></a>`).join('')}
+      </div></section>`:''}
+    <section class="sect"><div class="shead"><div><span class="eyebrow">Everyone is reading</span><h2>Trending Now</h2></div><a class="more" href="#/discover">See all <i data-lucide="arrow-right" style="width:14px;height:14px"></i></a></div>
+      ${rail(trending.map(s=>storyCard(s)).join(''),'r-trend')}</section>
+    <section class="sect"><div class="shead"><div><span class="eyebrow">Climbing fast</span><h2>Popular This Week</h2></div></div>
+      ${rail(by((x,y)=>(y.views*det(y.slug)())-(x.views*det(x.slug)()),8).map((s,i)=>storyCard(s,{rank:i+1})).join(''),'r-week')}</section>
+    ${rec.html}
+    <section class="sect"><div class="shead"><div><span class="eyebrow">Panels & speech bubbles</span><h2>Featured Comics</h2></div><a class="more" href="#/comics">See all <i data-lucide="arrow-right" style="width:14px;height:14px"></i></a></div>
+      ${rail(comics.map(s=>storyCard(s)).join(''),'r-comics')}</section>
+    <section class="sect"><div class="shead"><div><span class="eyebrow">Long nights, long chapters</span><h2>Featured Novels</h2></div><a class="more" href="#/novels">See all <i data-lucide="arrow-right" style="width:14px;height:14px"></i></a></div>
+      ${rail(novels.map(s=>storyCard(s)).join(''),'r-novels')}</section>
+    <section class="sect"><div class="shead"><div><span class="eyebrow">Fresh ink</span><h2>New & Recently Updated</h2></div></div>
+      <div class="grid">${fresh.slice(0,8).map(s=>storyCard(s)).join('')}</div></section>
+    <section class="sect"><div class="shead"><div><span class="eyebrow">Voices of Hatch</span><h2>Popular Creators</h2></div></div>
+      <div class="creator-grid">${creators.map(u=>creatorCard(u)).join('')}</div></section>
+    <section class="sect"><div class="shead"><div><span class="eyebrow">Finish what you start</span><h2>Top Completed Stories</h2></div></div>
+      <div class="rows">${done.map((s,i)=>`<a class="row rk" href="#/story/${s.id}"><span class="num">${i+1}</span><img class="cthumb" style="width:44px;height:60px;border-radius:8px" src="${coverSrc(s)}"><div class="grow"><h4>${esc(s.title)}</h4><div class="meta">${esc(au(s).name)} · ${db.chapters(s.id).length} chapters · ${fmt(s.views)} reads</div></div>${stPill(s.status)}<i data-lucide="chevron-right" style="color:var(--mut)"></i></a>`).join('')}</div></section>
+    <section class="sect"><div class="shead"><div><span class="eyebrow">From the community</span><h2>What's Happening</h2></div><a class="more" href="#/community">Open feed <i data-lucide="arrow-right" style="width:14px;height:14px"></i></a></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px">${DB.posts.filter(p=>!p.deleted).slice(0,3).map(postCard).join('')}</div></section>
+    <section class="sect banner-cta">
+      <svg class="squig" width="300" height="300" viewBox="0 0 100 100" fill="none"><path d="M8 68c14-30 22 14 34-18s16 22 28-10 14 18 22-2" stroke="var(--acc)" stroke-width="6" stroke-linecap="round"/></svg>
+      <h2>Your story deserves an audience.</h2>
+      <p style="margin:16px 0 26px;max-width:480px;opacity:.75">Free publishing tools, chapter scheduling, and readers who show up. Bring the story — we'll bring the crowd.</p>
+      <a class="btn btn-acc" href="#/studio/new"><i data-lucide="feather"></i>Start Publishing</a>
+    </section>
+  </div>`+footerHTML();
+}
+function creatorCard(u){
+  const fol=isFoll(u.id);
+  return `<div class="ccard"><a class="cb" href="#/creator/${u.username}" style="background-image:url(${pic(u.username+'-banner',500,140)})"></a>
+  <div class="cbody"><a href="#/creator/${u.username}">${avatar(u)}</a>
+  <div style="margin:7px 0 2px">${vname(u,false)}${u.verified?'<i data-lucide="badge-check" class="vbadge" style="width:15px;height:15px"></i>':''}</div>
+  <div style="font-size:12px;color:var(--mut)">${fmt(db.followers(u))} followers</div>
+  <div style="font-size:12.5px;color:var(--ink2);margin:8px 0;height:38px;overflow:hidden">${esc(u.bio)}</div>
+  <button class="btn ${fol?'following':'btn-ink'} btn-sm" data-act="follow" data-id="${u.id}" style="width:100%;justify-content:center">${fol?'Following':'Follow'}</button></div></div>`}
+function footerHTML(){return `<footer class="ft"><div class="wrap ft-grid">
+  <div><a class="logo" style="font-size:20px" href="#/" aria-label="KUMI — Your reading corner"><img class="kumi-logo" src="kumi-logo-animated.svg" alt="KUMI — Your reading corner"></a>
+  <p style="margin-top:12px;max-width:280px;color:var(--mut)">A home for independent comics and novels, and the people who can't stop reading them.</p></div>
+  <div><h5>Explore</h5><a href="#/discover">Discover</a><a href="#/manga">Manga</a><a href="#/comics">Comics</a><a href="#/novels">Novels</a><a href="#/community">Community</a></div>
+  <div><h5>Create</h5><a href="#/studio">Creator Studio</a><a href="#/studio/new">Publish a story</a><a href="#/studio/analytics">Analytics</a></div>
+  <div><h5>Demo</h5><a href="javascript:void(0)" data-act="resetDemo">Reset demo data</a><a href="javascript:void(0)" data-act="authOpen">Sign in / Register</a></div>
+  </div><div class="wrap" style="margin-top:30px;padding-top:18px;border-top:1px solid var(--line);font-size:12px;color:var(--mut);text-align:center">Developed by Jay Saberola - Webfocus Solutions Inc.<div class="social-links" aria-label="Social media links">
+    <a href="https://github.com/" target="_blank" rel="noopener noreferrer" aria-label="GitHub" title="GitHub"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.18-3.37-1.18-.45-1.15-1.11-1.46-1.11-1.46-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.9 1.53 2.35 1.09 2.92.83.09-.65.35-1.09.64-1.34-2.22-.25-4.56-1.11-4.56-4.95 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.02a9.58 9.58 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.38.2 2.4.1 2.65.64.7 1.03 1.59 1.03 2.68 0 3.85-2.34 4.69-4.57 4.94.36.31.68.92.68 1.86v2.76c0 .26.18.57.69.47A10 10 0 0 0 12 2Z"/></svg></a>
+    <a href="https://facebook.com/" target="_blank" rel="noopener noreferrer" aria-label="Facebook" title="Facebook"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M13.5 21v-8h2.7l.4-3h-3.1V8.1c0-.9.3-1.5 1.6-1.5h1.6V3.9c-.8-.1-1.7-.2-2.5-.2-2.5 0-4.2 1.5-4.2 4.3V10H7.2v3H10v8h3.5Z"/></svg></a>
+    <a href="https://instagram.com/" target="_blank" rel="noopener noreferrer" aria-label="Instagram" title="Instagram"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r=".8" fill="currentColor" stroke="none"/></svg></a>
+    <a href="https://linkedin.com/" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn" title="LinkedIn"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M5.2 8.5a1.8 1.8 0 1 0 0-3.6 1.8 1.8 0 0 0 0 3.6ZM3.7 10h3v10h-3V10Zm5 0h2.9v1.4h.1a3.2 3.2 0 0 1 2.9-1.6c3.1 0 3.7 2 3.7 4.6V20h-3v-5c0-1.2 0-2.8-1.7-2.8s-2 1.3-2 2.7V20h-3V10h.1Z"/></svg></a>
+  </div></div></footer>`}
+/* rule-based recommendations */
+function recommend(){
+  let rationale=null,pool=db.stories();
+  if(me){
+    const keys=Object.keys(DB.progress).filter(k=>k.startsWith(me.id+':')).map(k=>k.split(':')[1]);
+    const liked=Object.keys(DB.likes).filter(k=>DB.likes[k].includes(me.id));
+    const seen=new Set([...keys,...liked]);
+    const gcount={};pool.filter(s=>seen.has(s.id)).forEach(s=>s.genres.forEach(g=>gcount[g]=(gcount[g]||0)+1));
+    const top=Object.entries(gcount).sort((a,b)=>b[1]-a[1]).map(x=>x[0]);
+    if(top.length){rationale=top[0];pool=pool.filter(s=>!seen.has(s.id)&&s.genres.includes(top[0]))}
+    else pool=[];
+  } else pool=[];
+  if(pool.length<4){pool=db.stories().sort((a,b)=>b.views-a.views).slice(0,8);rationale=null}
+  const html=`<section class="sect"><div class="shead"><div><span class="eyebrow">${rationale?`Because you read ${esc(rationale)}`:'Hand-picked for you'}</span><h2>${rationale?'You May Also Like':'Recommended For You'}</h2></div></div>
+  ${rail(pool.slice(0,8).map(s=>storyCard(s)).join(''),'r-rec')}</section>`;
+  return {html};
+}
+
+function mangaHTML(){
+  return `<div class="wrap" style="padding-top:30px">
+    <span class="eyebrow">Official and free</span>
+    <h1 style="font-size:clamp(28px,4vw,40px)">Anime manga</h1>
+    <p class="manga-source">These are current series you can read for free on MANGA Plus, including titles with anime adaptations. Open a card to read the licensed chapters. <a href="https://mangaplus.shueisha.co.jp/updates" target="_blank" rel="noopener noreferrer">Browse the full MANGA Plus catalog ↗</a></p>
+    ${mangaDirectory()}
+  </div>`+footerHTML();
+}
+/* ================= DISCOVER ================= */
+const D={type:'all',status:'all',genres:new Set(),sort:'trending',q:'',n:8,busy:false};
+function discoverHTML(q,preset){
+  D.type=q.get('type')||preset||'all';D.q=q.get('q')||'';D.genres=new Set(q.get('g')?[q.get('g')]:[]);D.n=8;
+  const T=q.get('type')||preset;
+  return `<div class="wrap" style="padding-top:30px">
+    <span class="eyebrow">${T==='comic'?'Comics':T==='novel'?'Novels':'Discovery'}</span>
+    <h1 style="font-size:clamp(28px,4vw,40px)">${T==='comic'?'Every panel, one shelf':T==='novel'?'Long-form, long-lasting':'Find your next obsession'}</h1>
+    <div style="max-width:560px;margin:18px 0 26px"><input id="dsearch" class="f-full" style="font-size:16px;padding:14px 18px" placeholder="Search stories, authors, or genres…" value="${esc(D.q)}"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px" id="dfilters">
+      ${[['all','All'],['comic','Comics'],['novel','Novels'],['completed','Completed'],['ongoing','Ongoing']].map(f=>`<button class="gchip" data-act="dfilter" data-k="type" data-v="${f[0]}" style="${(D.type===f[0]||(f[0]==='completed'&&D.type==='completed'))?'border-color:var(--ink);background:var(--ink);color:var(--bg)':''}">${f[1]}</button>`).join('')}
+      <div class="genre-filter"><button type="button" class="genre-trigger ${D.genres.size?'has-selection':''}" data-act="dgenreToggle" aria-expanded="false" aria-controls="dgenre-menu"><i data-lucide="sliders-horizontal" style="width:16px;height:16px"></i><span id="dgenre-label">${D.genres.size?`${D.genres.size} genres selected`:'Filter by genre'}</span><span class="genre-count">${D.genres.size}</span><i data-lucide="chevron-down" style="width:15px;height:15px"></i></button><div class="genre-menu" id="dgenre-menu" hidden>${DB.genres.map(g=>`<button type="button" class="genre-option" data-act="dgenre" data-v="${esc(g)}" aria-pressed="${D.genres.has(g)}"><span class="genre-check">${D.genres.has(g)?'✓':''}</span><span>${esc(g)}</span></button>`).join('')}<button type="button" class="genre-clear" data-act="dgenreClear">Clear genre filters</button></div></div>
+      <select data-act="dsort" style="margin-left:auto">
+        ${[['trending','Trending'],['reads','Most Read'],['updated','Recently Updated'],['new','Newest'],['rated','Highest Rated']].map(o=>`<option value="${o[0]}" ${D.sort===o[0]?'selected':''}>${o[1]}</option>`).join('')}
+      </select>
+    </div>
+    <p id="manga-source" class="manga-source" style="display:${D.genres.has('Manga')?'block':'none'}">These series are free to read on MANGA Plus. <a href="#/manga">Open the manga shelf</a></p>
+    <section id="manga-directory" ${D.genres.has('Manga')?'':'hidden'}>
+      <h2 class="manga-section-title">Free on MANGA Plus</h2>
+      ${mangaDirectory()}
+    </section>
+    <div class="grid" id="dgrid"></div>
+    <div id="dsentinel" style="height:10px"></div><div id="dsk"></div>
+  </div>`;
+}
+function dquery(){
+  let S=db.stories();
+  if(D.type==='comic'||D.type==='novel')S=S.filter(s=>s.type===D.type);
+  if(D.type==='completed'||D.type==='ongoing')S=S.filter(s=>s.status===D.type);
+  if(D.genres.size)S=S.filter(s=>s.genres.some(g=>D.genres.has(g)));
+  if(D.q){const q=D.q.toLowerCase();S=S.filter(s=>s.title.toLowerCase().includes(q)||au(s).name.toLowerCase().includes(q)||s.genres.some(g=>g.toLowerCase().includes(q)))}
+  const sort={trending:(a,b)=>b.views-a.views,reads:(a,b)=>b.views-a.views,updated:(a,b)=>b.updAt-a.updAt,new:(a,b)=>b.createdAt-a.createdAt,rated:(a,b)=>b.rating-a.rating};
+  return S.sort(sort[D.sort]||sort.trending);
+}
+function drender(more){
+  const items=dquery();const slice=items.slice(0,D.n);
+  $('#dgrid').innerHTML=slice.map(s=>storyCard(s)).join('')||(D.genres.has('Manga')?'':`<div class="empty" style="grid-column:1/-1"><i data-lucide="search-x"></i><h3>Nothing found</h3><p>Try a different genre, or clear the search.</p></div>`);
+  $('#dsk').innerHTML=more?'':'';
+  if(items.length>D.n){io&&io.disconnect();io=new IntersectionObserver(es=>{if(es[0].isIntersecting&&!D.busy&&D.n<items.length){D.busy=true;
+    $('#dsk').innerHTML=`<div class="grid" style="margin-top:16px">${Array(4).fill('<div class="skel" style="aspect-ratio:2/3"></div>').join('')}</div>`;
+    setTimeout(()=>{D.n+=8;D.busy=false;drender();ic()},600)}},{rootMargin:'400px'});io.observe($('#dsentinel'))}
+  $('#dsk').innerHTML='';ic();
+}
+let io=null;
+function dmount(){
+  drender();
+  const inp=$('#dsearch');
+  let t;inp.oninput=()=>{clearTimeout(t);t=setTimeout(()=>{D.q=inp.value;D.n=8;drender()},300)};
+}
+/* ================= STORY PAGE ================= */
+function storyHTML(id){
+  const s=db.story(id);
+  if(!s)return notFound();
+  s.views++;save();
+  const A=au(s),chs=db.chapters(s.id),prog=db.prog(s.id);
+  const liked=isLiked(s.id),lib=inLib(s.id),foll=isFoll(s.author);
+  const cmts=DB.comments.filter(c=>c.target==='story'&&c.targetId===s.id&&!c.deleted);
+  const sim=db.stories().filter(x=>x.id!==s.id&&x.genres.some(g=>s.genres.includes(g))).slice(0,8);
+  const last=chs[chs.length-1];
+  return `<div class="shero"><div class="bgimg"><img src="${coverSrc(s)}"></div>
+  <div class="wrap">
+    <div class="sgrid">
+      <div class="scover"><img src="${coverSrc(s)}"><span class="tbadge ${s.type}" style="top:12px;left:12px">${s.type.toUpperCase()}</span></div>
+      <div class="sinfo" style="flex:1;min-width:0">
+        ${s.status==='completed'?stPill(s.status):stPill(s.status)} ${s.premium?'<span class="pill" style="background:var(--ink);color:var(--bg)">Premium</span>':''}
+        <h1 style="margin-top:10px">${esc(s.title)}</h1>
+        <div class="by">${avatar(A,'sm')} ${vname(A)} <span style="color:var(--mut);font-size:13px">· ${fmt(db.followers(A))} followers</span></div>
+        <p class="desc">${esc(s.desc)}</p>
+        <div class="gchips">${s.genres.map(gchip).join('')}</div>
+        <div class="sstats">
+          <div><b>${stars(+s.rating)}<span style="font-size:14px">${s.rating}</span></b><span>rating</span></div>
+          <div><b><i data-lucide="eye" style="width:16px;height:16px;color:var(--mut)"></i>${fmt(s.views)}</b><span>views</span></div>
+          <div><b><i data-lucide="heart" style="width:16px;height:16px;color:var(--mut)"></i>${fmt(db.likes(s))}</b><span>likes</span></div>
+          <div><b>${chs.length}</b><span>chapters</span></div>
+          <div><b>${dstr(last?.at||s.createdAt).replace(', 2025','')}</b><span>updated</span></div>
+        </div>
+        <div class="sactions">
+          ${prog?`<a class="btn btn-acc" href="#/read/${s.type}/${s.id}/${prog.ch}"><i data-lucide="book-open"></i>Continue Ch. ${prog.ch}</a>`
+          :`<a class="btn btn-acc" href="#/read/${s.type}/${s.id}/1"><i data-lucide="book-open"></i>Read Now</a>`}
+          <button class="btn btn-out ${lib?'following':''}" data-act="lib" data-id="${s.id}"><i data-lucide="${lib?'bookmark-check':'bookmark-plus'}"></i>${lib?'In Library':'Add to Library'}</button>
+          <button class="btn btn-out ${foll?'following':''}" data-act="follow" data-id="${s.author}"><i data-lucide="${foll?'user-check':'user-plus'}"></i>${foll?'Following':'Follow'}</button>
+          <button class="ibtn" data-act="share" data-id="${s.id}" title="Share"><i data-lucide="share-2"></i></button>
+          ${me?`<button class="ibtn" data-act="report" data-t="story" data-id="${s.id}" title="Report"><i data-lucide="flag"></i></button>`:''}
+        </div>
+      </div>
+    </div>
+  </div></div>
+  <div class="wrap">
+    <section class="sect" style="margin-top:34px"><div class="shead"><h2>Chapters</h2><span style="color:var(--mut);font-size:13px">${chs.length} released</span></div>
+      <div class="rows">${chs.map(c=>{
+        const locked=s.premium&&c.num>1;
+        const read=prog&&c.num<prog.ch||(prog&&c.num===prog.ch);
+        return `<a class="row" href="${locked?'javascript:void(0)':`#/read/${s.type}/${s.id}/${c.num}`}">
+          <span class="num">${c.num}</span>
+          <div class="grow"><h4>${esc(c.title)}</h4><div class="meta">${dstr(c.at)} ${read?'· <span style="color:var(--teal);font-weight:600;display:inline-flex;align-items:center;gap:4px"><i data-lucide="check" style="width:12px;height:12px"></i>read</span>':''}</div></div>
+          ${locked?'<span class="pill" style="background:var(--acc-soft);color:var(--acc-ink)"><i data-lucide="lock" style="width:11px;height:11px;vertical-align:-1px"></i> Premium</span>':c.published?'':'<span class="st draft">draft</span>'}
+          ${s.type==='comic'?`<i data-lucide="image" style="color:var(--mut);width:15px;height:15px"></i>`:''}
+        </a>`}).join('')}</div></section>
+    <section class="sect" style="margin-top:-10px"><div class="authorbox">
+      ${avatar(A,'lg')}
+      <div style="flex:1">${vname(A)}<p style="font-size:13.5px;color:var(--ink2);margin:5px 0 10px;max-width:560px">${esc(A.bio)}</p>
+      <div style="display:flex;gap:10px;align-items:center"><button class="btn btn-sm ${foll?'following':'btn-ink'}" data-act="follow" data-id="${A.id}">${foll?'Following':'Follow'}</button><span style="font-size:12.5px;color:var(--mut)">${fmt(db.followers(A))} followers · ${db.stories().filter(x=>x.author===A.id).length} stories</span></div></div>
+    </div></section>
+    <section class="sect" style="margin-top:-10px"><div class="shead"><h2>Comments <span style="font-size:15px;color:var(--mut);font-weight:500">(${cmts.length})</span></h2>
+      <select data-act="csort" data-id="${s.id}" style="margin-left:auto"><option value="new">Newest</option><option value="top">Popular</option></select></div>
+      <div id="cbox">${commentBox('story',s.id)}</div><div id="clist">${commentList(cmts)}</div></section>
+    <section class="sect"><div class="shead"><div><span class="eyebrow">More like this</span><h2>Readers also enjoyed</h2></div></div>
+      ${rail(sim.map(x=>storyCard(x)).join(''),'r-sim')}</section>
+  </div>`+footerHTML();
+}
+function commentBox(target,targetId){
+  if(!me)return `<div class="panel" style="padding:16px;display:flex;gap:10px;align-items:center;font-size:14px;color:var(--mut)"><i data-lucide="message-circle"></i>Sign in to join the conversation. <button class="btn btn-ink btn-sm" style="margin-left:auto" data-act="authOpen">Sign in</button></div>`;
+  return `<form data-form="comment" data-t="${target}" data-id="${targetId}" style="display:flex;gap:12px;margin-bottom:8px">${avatar(me,'sm')}
+    <div style="flex:1"><textarea name="text" style="min-height:74px" placeholder="Share your thoughts — be kind, be specific." required></textarea>
+    <div style="text-align:right;margin-top:8px"><button class="btn btn-ink btn-sm">Post comment</button></div></div></form>`;
+}
+function commentTree(list){
+  const roots=list.filter(c=>!c.parentId),kids=id=>list.filter(c=>c.parentId===id);
+  return roots.map(c=>{
+    const ch=kids(c.id);
+    return `<div class="cmt">${avatar(db.user(c.userId),'sm')}<div class="body">
+      <div class="who">${esc(db.user(c.userId).name)}<span>${ago(c.at)}</span></div><p>${esc(c.text)}</p>
+      <div class="acts"><button data-act="clike" data-id="${c.id}" class="${c.likes.includes(me?.id)?'on':''}"><i data-lucide="heart" style="width:13px;height:13px"></i>${c.likes.length||''}</button>
+      ${me?`<button data-act="creply" data-id="${c.id}">Reply</button>`:''}
+      ${me&&(c.userId===me.id||isAdmin())?`<button data-act="cdel" data-id="${c.id}"><i data-lucide="trash-2" style="width:13px;height:13px"></i></button>`:''}
+      ${me?`<button data-act="report" data-t="comment" data-id="${c.id}"><i data-lucide="flag" style="width:12px;height:12px"></i></button>`:''}</div>
+      ${ch.length?`<div class="replies">${ch.map(k=>`<div class="cmt" style="border:none;padding:14px 0 4px">${avatar(db.user(k.userId),'sm')}<div class="body"><div class="who">${esc(db.user(k.userId).name)}<span>${ago(k.at)}</span></div><p>${esc(k.text)}</p><div class="acts"><button data-act="clike" data-id="${k.id}" class="${k.likes.includes(me?.id)?'on':''}"><i data-lucide="heart" style="width:13px;height:13px"></i>${k.likes.length||''}</button>${me&&(k.userId===me.id||isAdmin())?`<button data-act="cdel" data-id="${k.id}"><i data-lucide="trash-2" style="width:13px;height:13px"></i></button>`:''}</div></div></div>`).join('')}</div>`:''}
+    </div></div>`;
+  }).join('')||`<div class="empty" style="padding:34px"><i data-lucide="message-circle"></i><p>No comments yet — be the first voice here.</p></div>`;
+}
+function commentList(list,sort='new'){return commentTree(sort==='top'?[...list].sort((a,b)=>b.likes.length-a.likes.length):[...list].sort((a,b)=>b.at-a.at))}
+
+/* ================= READERS ================= */
+function readerMount(type,sid,num){
+  const s=db.story(sid);if(!s)return null;
+  const chs=db.chapters(s.id),ch=chs.find(c=>c.num===num);
+  if(!ch||(s.premium&&num>1)){modal(`<h3>${num>1&&s.premium?'Premium chapter':'Not available'}</h3><p class="sub">${num>1&&s.premium?esc(s.title)+' marks chapters beyond the first as Premium. Monetization (tips & coin unlocks) ships in a future release — every lock already has its place in the data model.':'This chapter isn\'t published yet.'}</p><div style="display:flex;gap:10px;justify-content:flex-end"><button class="btn btn-out" data-act="modalClose2">Close</button>${num>1&&s.premium?`<button class="btn btn-acc" data-act="unlock">Unlock with coins <span class="pill" style="background:var(--acc-soft)">Soon</span></button>`:''}</div>`);return null}
+  if(me){s.views++;db.setProg(sid,num,.0)}
+  const dark=type==='comic';
+  document.body.dataset.rd=1;
+  $('#view').innerHTML=(type==='comic'?comicBody(s,chs,ch):novelBodyHTML(s,chs,ch));
+  renderChrome();
+  return function(){
+    const view=$('#view'),progEl=$('#rprog');
+    const savePct=()=>{const max=view.scrollHeight-innerHeight;const pct=max>0?Math.min(1,scrollY/max):1;
+      progEl.style.width=(pct*100)+'%';$('#rpct').textContent=Math.round(pct*100)+'%';me&&db.setProg(sid,num,pct)};
+    let t;const onScroll=()=>{clearTimeout(t);t=setTimeout(savePct,250)};
+    addEventListener('scroll',onScroll);cleanups.push(()=>removeEventListener('scroll',onScroll));
+    const saved=db.prog(sid);
+    setTimeout(()=>{if(saved&&saved.ch===num&&saved.pct>.02){scrollTo(0,saved.pct*(view.scrollHeight-innerHeight))}savePct()},80);
+    const keys=e=>{if(e.key==='ArrowRight')navCh(s,chs,num+1);if(e.key==='ArrowLeft'&&num>1)navCh(s,chs,num-1);if(e.key==='f')A.fullscreen()};
+    addEventListener('keydown',keys);cleanups.push(()=>removeEventListener('keydown',keys));
+    ic();
+  };
+  function navCh(s,chs,n){if(chs.find(c=>c.num===n))location.hash=`#/read/${s.type}/${s.id}/${n}`;else{toast('You\'ve reached the latest chapter','flag');location.hash='#/story/'+s.id}}
+  function comicBody(s,chs,ch){
+    const theme=(me&&DB.prefs[me.id]?.comicTheme)||localStorage.getItem('hatch-comic-theme')||'dark';
+    return `<div class="rd r${theme}" id="comic-reader"><div class="rbar">
+      <a class="ibtn" href="#/story/${s.id}"><i data-lucide="arrow-left"></i></a>
+      <div style="flex:1;min-width:0"><b style="font-family:var(--fd);font-size:15px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(s.title)}</b><span style="font-size:11.5px;opacity:.6">Ch. ${ch.num} — ${esc(ch.title)}</span></div>
+      <button class="ibtn" data-act="chsel"><i data-lucide="list"></i></button>
+      <button class="ibtn" data-act="fit"><i data-lucide="scan"></i></button>
+      <button class="ibtn" data-act="fullscreen"><i data-lucide="maximize"></i></button>
+      <button class="ibtn" data-act="ctheme" title="Switch to ${theme==='dark'?'light':'dark'} mode" aria-label="Switch to ${theme==='dark'?'light':'dark'} mode"><i data-lucide="${theme==='dark'?'sun':'moon'}"></i></button>
+      <button class="ibtn" data-act="lib" data-id="${s.id}" style="color:${inLib(s.id)?'var(--acc)':''}"><i data-lucide="bookmark"></i></button>
+      <button class="ibtn" data-act="likeStory" data-id="${s.id}" style="color:${isLiked(s.id)?'var(--red)':''}"><i data-lucide="heart"></i></button>
+      <div class="rprog" id="rprog" style="width:0%"></div>
+    </div>
+    ${comicPagesHTML(s,ch)}
+    <div class="rnav"><button class="btn btn-out" data-act="prevch" data-id="${s.id}" data-n="${ch.num}" ${ch.num===1?'disabled':''}><i data-lucide="chevron-left"></i>Previous</button>
+      <a class="btn btn-out" href="#/story/${s.id}">Story page</a>
+      <button class="btn btn-acc" data-act="nextch" data-id="${s.id}" data-n="${ch.num}">Next<i data-lucide="chevron-right"></i></button></div>
+    <div class="wrap" style="max-width:820px;padding-bottom:60px"><div class="panel rcomments"><h3>Comments</h3>${commentBox('story',s.id)}<div id="clist">${commentList(DB.comments.filter(c=>c.target==='story'&&c.targetId===s.id&&!c.deleted))}</div></div></div></div>`}
+  function novelBodyHTML(s,chs,ch){
+    const p=(me&&DB.prefs[me.id])||{fs:19,ff:'var(--fd)',theme:'sepia',rw:680,lh:1.85};
+    return `<div class="rd r${p.theme}" id="nrd" style="--fs:${p.fs}px;--ff:${p.ff};--rw:${p.rw}px;--lh:${p.lh}">
+    <div class="rbar"><a class="ibtn" href="#/story/${s.id}"><i data-lucide="arrow-left"></i></a>
+      <div style="flex:1;min-width:0"><b style="font-family:var(--fd);font-size:15px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(s.title)}</b><span style="font-size:11.5px;opacity:.6">Ch. ${ch.num} — ${esc(ch.title)}</span></div>
+      <button class="ibtn" data-act="toc"><i data-lucide="list"></i></button>
+      <button class="ibtn" data-act="nset"><i data-lucide="type"></i></button>
+      <button class="ibtn" data-act="likeStory" data-id="${s.id}" style="color:${isLiked(s.id)?'var(--red)':''}"><i data-lucide="heart"></i></button>
+      <div class="rprog" id="rprog" style="width:0%"></div>
+    </div>
+    <article class="nreader"><div class="chnum">Chapter ${ch.num}</div><h1 style="margin-bottom:.7em">${esc(ch.title)}</h1>${ch.content}
+    <div style="margin-top:3em;padding-top:1.5em;border-top:1px solid var(--line);font-family:var(--fb);font-size:14px;color:var(--mut);display:flex;justify-content:space-between;align-items:center"><span>The end of Chapter ${ch.num} · <span id="rpct">0</span>% read</span><button class="btn btn-ink btn-sm" data-act="nextch" data-id="${s.id}" data-n="${ch.num}">Next chapter<i data-lucide="chevron-right"></i></button></div></article>
+    <div class="rnav"><button class="btn btn-out" data-act="prevch" data-id="${s.id}" data-n="${ch.num}" ${ch.num===1?'disabled':''}><i data-lucide="chevron-left"></i>Previous</button><a class="btn btn-out" href="#/story/${s.id}">Story page</a></div>
+    <div id="nsetbox"></div><div id="tocbox"></div></div>`}
+}
+
+/* ================= COMMUNITY ================= */
+function postCard(p){
+  const u=db.user(p.userId),liked=isLiked(p.id);
+  const cmts=DB.comments.filter(c=>c.target==='post'&&c.targetId===p.id&&!c.deleted);
+  return `<div class="post" data-post="${p.id}">
+    <div class="ph">${avatar(u,'sm')}<div style="flex:1">${vname(u)}<div style="font-size:12px;color:var(--mut)">${ago(p.at)}</div></div><span class="ptype">${esc(p.type)}</span>
+    ${me&&(p.userId===me.id||isAdmin())?`<button class="ibtn" data-act="pdel" data-id="${p.id}"><i data-lucide="trash-2"></i></button>`:''}</div>
+    <p class="ptext">${esc(p.text)}</p>
+    <div class="pacts"><button data-act="plike" data-id="${p.id}" class="${liked?'on':''}"><i data-lucide="heart" style="width:15px;height:15px"></i>${(DB.likes[p.id]||[]).length||'Like'}</button>
+    <button data-act="ptoggle" data-id="${p.id}"><i data-lucide="message-square" style="width:15px;height:15px"></i>${cmts.length||'Comment'}</button>
+    ${me?`<button data-act="report" data-t="post" data-id="${p.id}"><i data-lucide="flag" style="width:14px;height:14px"></i></button>`:''}</div>
+    <div class="pcmts" id="pc-${p.id}" style="display:none;margin-top:14px">${commentBox('post',p.id)}<div style="border:none" id="pcl-${p.id}">${commentTree(cmts)}</div></div>
+  </div>`}
+function communityHTML(){
+  const posts=DB.posts.filter(p=>!p.deleted).sort((a,b)=>b.at-a.at);
+  const types=['Discussion','Recommendation','Fan Art','Announcement','Question'];
+  return `<div class="wrap" style="padding-top:34px">
+    <span class="eyebrow">Community</span><h1 style="font-size:clamp(28px,4vw,40px)">What's happening on ${esc(DB.meta.brand)}?</h1>
+    ${me?`<div class="panel" style="margin:22px 0 30px"><form data-form="post">${avatar(me,'sm')}
+      <div style="display:flex;gap:12px"><div style="flex:1">
+      <div class="typepick">${types.map((t,i)=>`<button type="button" data-act="ptype" data-v="${t}" class="${i===0?'on':''}">${t}</button>`).join('')}</div>
+      <input type="hidden" name="type" value="Discussion" id="ptypeval">
+      <textarea name="text" placeholder="Start a discussion, share fan art, recommend something…" required style="min-height:84px"></textarea>
+      <div style="text-align:right;margin-top:10px"><button class="btn btn-acc btn-sm">Post to feed</button></div></div></div></form></div>`
+    :`<div class="panel" style="margin:22px 0 30px;display:flex;gap:10px;align-items:center;color:var(--mut)"><i data-lucide="message-circle"></i>Sign in to post, like, and reply.<button class="btn btn-ink btn-sm" style="margin-left:auto" data-act="authOpen">Sign in</button></div>`}
+    <div style="display:grid;gap:16px;max-width:760px">${posts.map(postCard).join('')}</div>
+  </div>`+footerHTML();
+}
+
+/* ================= LIBRARY ================= */
+function libraryHTML(tab){
+  const entries=Object.entries(DB.libs).filter(([k])=>k.startsWith(me.id+':')).map(([k])=>DB.stories.find(s=>s.id===k.split(':')[1])).filter(Boolean);
+  const prog=Object.entries(DB.progress).filter(([k])=>k.startsWith(me.id+':')).map(([k,p])=>({s:DB.stories.find(x=>x.id===k.split(':')[1]),p})).filter(x=>x.s);
+  const foll=Object.keys(DB.follows).filter(k=>k.startsWith(me.id+':')).map(k=>db.user(k.split(':')[1]));
+  const hist=[...prog].sort((a,b)=>b.p.at-a.p.at);
+  const tabs=[['reading','Currently Reading'],['bookmarked','Bookmarked'],['following','Following'],['history','History']];
+  let body='';
+  if(tab==='reading'){body=prog.length?`<div style="display:grid;gap:14px">${prog.map(({s,p})=>`<div class="librow"><img class="lth" src="${coverSrc(s)}"><div style="flex:1;min-width:0"><b style="font-family:var(--fd);font-size:17px">${esc(s.title)}</b><div style="font-size:12.5px;color:var(--mut);margin:3px 0 4px">${esc(au(s).name)} · Chapter ${p.ch} / ${db.chapters(s.id).length}</div><div class="pbar" style="max-width:340px"><i style="width:${p.pct*100}%"></i></div><div style="font-size:12px;color:var(--mut);margin-top:5px">${Math.round(p.pct*100)}% completed</div></div><a class="btn btn-acc btn-sm" href="#/read/${s.type}/${s.id}/${p.ch}">Continue</a></div>`).join('')}</div>`:emptyLib('book-open','Nothing in progress','Open any story and your progress will appear here automatically.')}
+  else if(tab==='bookmarked'){body=entries.length?`<div class="grid">${entries.map(s=>storyCard(s,{prog:db.prog(s.id)})).join('')}</div>`:emptyLib('bookmark','No bookmarks yet','Tap the bookmark on any cover to keep it here.')}
+  else if(tab==='following'){body=foll.length?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px">${foll.map(u=>creatorCard(u)).join('')}</div>`:emptyLib('users','Not following anyone','Follow creators to get notified about new chapters.')}
+  else{body=hist.length?`<div class="rows">${hist.map(({s,p})=>`<a class="row" href="#/story/${s.id}"><span class="num"><i data-lucide="history" style="width:17px;height:17px"></i></span><div class="grow"><h4>${esc(s.title)}</h4><div class="meta">Ch. ${p.ch} · ${ago(p.at)}</div></div><a class="btn btn-out btn-sm" href="#/read/${s.type}/${s.id}/${p.ch}">Resume</a></a>`).join('')}</div>`:emptyLib('history','No reading history','Your trail will show up here.')}
+  return `<div class="wrap" style="padding-top:34px;min-height:60vh">
+    <span class="eyebrow">${esc(me.name)}</span><h1 style="font-size:clamp(26px,3.6vw,36px)">My Library</h1>
+    <div class="ltabs" style="margin-top:22px">${tabs.map(t=>`<button class="${tab===t[0]?'on':''}" data-act="ltab" data-v="${t[0]}">${t[1]}</button>`).join('')}</div>${body}
+  </div>`+footerHTML();
+}
+function emptyLib(icon,h,p){return `<div class="empty"><i data-lucide="${icon}"></i><h3>${h}</h3><p>${p}</p><a class="btn btn-ink" style="margin-top:16px" href="#/discover">Browse stories</a></div>`}
+
+/* ================= CREATOR PROFILE ================= */
+function creatorHTML(un,q){
+  const u=DB.users.find(x=>x.username===un);if(!u)return notFound();
+  const tab=q.get('t')||'stories';
+  const stories=db.stories().filter(s=>s.author===u.id).sort((a,b)=>b.views-a.views);
+  const posts=DB.posts.filter(p=>p.userId===u.id&&!p.deleted);
+  const foll=isFoll(u.id),self=me&&me.id===u.id;
+  return `<div>
+  <div style="height:min(300px,34vw);background:url(${pic(u.username+'-banner',1400,400)}) center/cover;position:relative"><div style="position:absolute;inset:0;background:linear-gradient(to top,var(--bg) 4%,transparent 60%)"></div></div>
+  <div class="wrap" style="margin-top:-70px">
+    <div style="display:flex;gap:22px;align-items:flex-end;flex-wrap:wrap">
+      ${avatar(u,'lg')}
+      <div style="flex:1;min-width:220px;padding-bottom:4px"><h1 style="font-size:clamp(26px,3.4vw,38px)">${esc(u.name)}${u.verified?'<i data-lucide="badge-check" class="vbadge" style="width:22px;height:22px"></i>':''}</h1>
+      <div style="font-size:13px;color:var(--mut);margin-top:4px">@${esc(u.username)} · ${fmt(db.followers(u))} followers · joined ${dstr(u.createdAt||NOW-200*DAY)}</div></div>
+      ${self?`<a class="btn btn-out" href="#/studio"><i data-lucide="layout-dashboard"></i>Creator Studio</a>`:me?`<div style="display:flex;gap:9px;padding-bottom:4px"><button class="btn ${foll?'following':'btn-acc'}" data-act="follow" data-id="${u.id}">${foll?'Following':'Follow'}</button><button class="btn btn-out" data-act="soon" data-m="Creator tips open up with monetization">Tip <span class="pill" style="background:var(--acc-soft)">Soon</span></button><button class="ibtn" data-act="report" data-t="user" data-id="${u.id}"><i data-lucide="flag"></i></button></div>`:''}
+    </div>
+    <p class="desc" style="margin:18px 0;max-width:620px">${esc(u.bio)}</p>
+    <div class="gchips">${u.links.map(l=>`<a class="gchip" href="javascript:void(0)" data-act="soon" data-m="External profiles open in the full release"><i data-lucide="link" style="width:12px;height:12px"></i>${esc(l)}</a>`).join('')}</div>
+    <div class="ltabs" style="margin:24px 0 26px">${[['stories','Stories'],['posts','Posts'],['about','About']].map(t=>`<a class="btn btn-sm ${tab===t[0]?'btn-ink':'btn-out'}" href="#/creator/${u.username}?t=${t[0]}">${t[1]}</a>`).join('')}</div>
+    ${tab==='stories'?(stories.length?`<div class="grid">${stories.map(s=>storyCard(s)).join('')}</div>`:`<div class="empty"><i data-lucide="feather"></i><p>No published stories yet.</p></div>`)
+    :tab==='posts'?(posts.length?`<div style="display:grid;gap:16px;max-width:720px">${posts.map(postCard).join('')}</div>`:`<div class="empty"><i data-lucide="message-square"></i><p>No posts yet.</p></div>`)
+    :`<div class="panel" style="max-width:640px"><h3>About ${esc(u.name)}</h3><p style="color:var(--ink2);line-height:1.7">${esc(u.bio)}</p>
+      <div class="sstats" style="margin-top:18px"><div><b>${fmt(db.followers(u))}</b><span>followers</span></div><div><b>${stories.length}</b><span>stories</span></div><div><b>${fmt(stories.reduce((a,s)=>a+s.views,0))}</b><span>total views</span></div><div><b>${u.verified?'Yes':'—'}</b><span>verified</span></div></div></div>`}
+  </div></div>`+footerHTML();
+}
+
+/* ================= CREATOR STUDIO ================= */
+let WZ={};
+function studioHTML(seg){
+  const a=seg[1]||'dash';
+  const mystories=db.stories().filter(s=>s.author===me.id);
+  const menu=[['dash','Dashboard','layout-dashboard'],['stories','My Stories','library'],['new','Create Story','plus'],['analytics','Analytics','bar-chart-3'],['comments','Comments','message-square'],['followers','Followers','users'],['settings','Settings','settings']];
+  if(me.role==='user'&&!mystories.length){if(a!=='new')return studioGate()}
+  const nav=(cls='')=>`<aside class="side ${cls}"><a class="slogo" href="#/studio">Creator Studio</a>${menu.map(m=>`<a href="#/studio/${m[0]}" class="${a===m[0]||(a==='edit'||a==='chapters')&&m[0]==='stories'?'on':''}"><i data-lucide="${m[2]}"></i>${m[1]}</a>`).join('')}<hr><a href="#/creator/${me.username}"><i data-lucide="user"></i>View public profile</a></aside>
+  <nav class="mtabs">${menu.map(m=>`<a href="#/studio/${m[0]}" class="${a===m[0]?'on':''}">${m[1]}</a>`).join('')}</nav>`;
+  let main='';
+  if(a==='dash'){
+    const views=mystories.reduce((x,s)=>x+s.views,0),likes=mystories.reduce((x,s)=>x+db.likes(s),0);
+    const cmts=DB.comments.filter(c=>!c.deleted&&mystories.some(s=>s.id===c.targetId)).length;
+    const v14=series(me.id+'v',14,60,0.03),f14=series(me.id+'f',14,4,0.05);
+    main=`<h1 style="font-size:26px;margin-bottom:22px">Welcome back, ${esc(me.name.split(' ')[0])}.</h1>
+    <div class="tiles">${statTile('eye','Total views',fmt(views+4300),'+8.2% this week')}${statTile('users','Followers',fmt(db.followers(me)),'+34 this week')}${statTile('heart','Likes',fmt(likes),'+121')}${statTile('message-square','Comments',cmts,'')}${statTile('library','Published',mystories.length,'')}${statTile('clock','Reading time',fmt(Math.round(views*4.2/60))+'h','4m 12s avg')}</div>
+    <div class="duo"><div class="panel"><h3><i data-lucide="trending-up" style="color:var(--acc-deep)"></i>Views — last 14 days</h3>${lineChart(v14,{labels:v14.map((_,i)=>`Day ${i+1}`)})}</div>
+    <div class="panel"><h3><i data-lucide="users" style="color:var(--teal)"></i>New followers</h3>${lineChart(f14,{color:'var(--teal)',labels:f14.map((_,i)=>`Day ${i+1}`)})}</div></div>
+    <div class="panel" style="margin-top:16px"><h3><i data-lucide="bar-chart-3"></i>Chapter performance</h3>
+    ${mystories.length?barTop(mystories[0]):'<p style="color:var(--mut)">Publish a story to see per-chapter data.</p>'}</div>`;
+  }
+  else if(a==='stories'){
+    main=`<div style="display:flex;align-items:center;gap:14px;margin-bottom:20px"><h1 style="font-size:26px">My Stories</h1><a class="btn btn-acc btn-sm" style="margin-left:auto" href="#/studio/new"><i data-lucide="plus"></i>New story</a></div>
+    ${mystories.length?`<div class="rows">${mystories.map(s=>{const chs=db.chapters(s.id);return `<div class="row">
+      <img class="cthumb" style="width:46px;height:64px;border-radius:8px" src="${coverSrc(s)}">
+      <div class="grow"><h4>${esc(s.title)}</h4><div class="meta">${s.type} · ${chs.length} chapters · ${fmt(s.views)} views · ${dstr(s.updAt)}</div></div>
+      ${s.published?stPill(s.status):'<span class="st draft">draft</span>'}
+      <a class="btn btn-out btn-sm" href="#/studio/chapters/${s.id}">Chapters</a>
+      <a class="ibtn" href="#/story/${s.id}" title="View"><i data-lucide="external-link"></i></a>
+      ${isAdmin()?`<button class="ibtn" data-act="feat" data-id="${s.id}" title="Feature" style="color:${s.featured?'var(--acc)':''}"><i data-lucide="star"></i></button>`:''}
+      <button class="ibtn" data-act="delstory" data-id="${s.id}"><i data-lucide="trash-2"></i></button></div>`}).join('')}</div>`
+    :`<div class="empty"><i data-lucide="feather"></i><h3>No stories yet</h3><p>Every platform favourite started at zero. Start yours.</p><a class="btn btn-acc" style="margin-top:16px" href="#/studio/new">Create your first story</a></div>`}`;
+  }
+  else if(a==='new')main=wizardHTML();
+  else if(a==='chapters'&&seg[2]){main=chaptersHTML(DB.stories.find(s=>s.id===seg[2]))}
+  else if(a==='edit'&&seg[2]){main=editStoryHTML(DB.stories.find(s=>s.id===seg[2]))}
+  else if(a==='analytics'){
+    const v7=series(me.id+'v',7,60,.03),v30=series(me.id+'v30',30,50,.03);
+    main=`<h1 style="font-size:26px;margin-bottom:20px">Analytics</h1>
+    <div class="ltabs">${[7,30,90,365].map(n=>`<button data-act="range" data-v="${n}" class="${n===30?'on':''}">${n===365?'1 year':n+' days'}</button>`).join('')}</div>
+    <div id="anbox">${rangeBox(30)}</div>`;
+  }
+  else if(a==='comments'){
+    const ids=mystories.map(s=>s.id);
+    const cs=DB.comments.filter(c=>!c.deleted&&ids.includes(c.targetId)).sort((a,b)=>b.at-a.at);
+    main=`<h1 style="font-size:26px;margin-bottom:20px">Comments on your stories</h1>
+    ${cs.length?`<div class="panel">${cs.map(c=>{const s=DB.stories.find(x=>x.id===c.targetId);return `<div class="cmt">${avatar(db.user(c.userId),'sm')}<div class="body"><div class="who">${esc(db.user(c.userId).name)}<span>on <a href="#/story/${s.id}" style="color:var(--acc-deep)">${esc(s.title)}</a> · ${ago(c.at)}</span></div><p>${esc(c.text)}</p>
+    <div class="acts"><button data-act="creplyStory" data-id="${c.id}" data-s="${s.id}">Reply</button>${`<button data-act="cdel" data-id="${c.id}">Delete</button>`}</div></div></div>`}).join('')}</div>`
+    :`<div class="empty"><i data-lucide="message-square"></i><p>No comments yet — share your story to get the conversation going.</p></div>`}`;
+  }
+  else if(a==='followers'){
+    const fs=Object.keys(DB.follows).filter(k=>k.endsWith(':'+me.id)).map(k=>db.user(k.split(':')[1]));
+    main=`<h1 style="font-size:26px;margin-bottom:20px">Followers (${fmt(db.followers(me))})</h1>
+    ${fs.length?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px">${fs.map(u=>creatorCard(u)).join('')}</div>`:`<div class="empty"><i data-lucide="users"></i><p>Your first followers will appear here.</p></div>`}
+    <p style="font-size:12.5px;color:var(--mut);margin-top:14px">Counts include offline followers from before this demo session.</p>`;
+  }
+  else if(a==='settings'){
+    main=`<h1 style="font-size:26px;margin-bottom:20px">Profile settings</h1>
+    <form class="panel" data-form="pf" style="max-width:560px">
+      <label class="f">Display name</label><input name="name" class="f-full" value="${esc(me.name)}">
+      <label class="f">Bio</label><textarea name="bio" class="f-full">${esc(me.bio)}</textarea>
+      <button class="btn btn-ink" style="margin-top:16px">Save changes</button>
+    </form>`;
+  }
+  return `<div class="wrap shell">${nav()}<div>${main}</div></div>`+footerHTML();
+}
+function studioGate(){return `<div class="wrap"><div class="empty" style="padding:100px 20px"><i data-lucide="feather"></i><h3>Become a creator</h3><p>Publish your first comic or novel and the full Creator Studio unlocks — analytics, chapter tools, and an audience that subscribes to you, not an algorithm.</p><a class="btn btn-acc" style="margin-top:18px" href="#/studio/new">Create your first story</a></div></div>`+footerHTML()}
+function barTop(s){
+  const chs=db.chapters(s.id).slice(-8),r=det(s.id+'perf');
+  const vals=chs.map(c=>Math.round(c.num*400*(0.6+r())));
+  const max=Math.max(...vals);
+  return `<div style="display:grid;gap:9px">${chs.map((c,i)=>`<div style="display:flex;gap:10px;align-items:center;font-size:12.5px"><span style="width:80px;color:var(--mut);flex:none">Ch. ${c.num}</span><div style="flex:1;height:22px;background:var(--line2);border-radius:6px;overflow:hidden"><div style="height:100%;width:${vals[i]/max*100}%;background:${s.type==='comic'?'var(--acc)':'var(--teal)'};border-radius:6px" title="${fmt(vals[i])} reads"></div></div><b style="width:52px;text-align:right">${fmt(vals[i])}</b></div>`).join('')}</div>`;
+}
+function rangeBox(days){
+  const v=series(me.id+'a'+days,days>90?24:days,60,.03);
+  const sum=v.reduce((a,b)=>a+b,0);
+  return `<div class="tiles" style="margin-bottom:16px">${statTile('eye','Views',fmt(sum*230))}${statTile('user-check','Unique readers',fmt(sum*87))}${statTile('heart','Likes',fmt(sum*31))}${statTile('check-circle','Completion rate','74%')}${statTile('clock','Avg. read time','4m 12s')}</div>
+  <div class="panel"><h3>Views over ${days===365?'the year':'last '+days+' days'}</h3>${lineChart(v,{labels:v.map((_,i)=>'Point '+(i+1))})}</div>`;
+}
+function wizardHTML(){
+  WZ={step:1,type:'comic',genres:[],tags:'',status:'ongoing',premium:false,schedule:'',title:'',desc:'',coverSeed:'cs'+Date.now()};
+  return `<h1 style="font-size:26px;margin-bottom:6px">Create a story</h1><p style="color:var(--mut)">Four small steps between your head and the front page.</p><div id="wizbox">${wizStep()}</div>`;
+}
+function wizStep(){
+  const w=WZ;
+  const steps=`<div class="wsteps">${['Format','Details','Settings','Review'].map((s,i)=>`<div class="${w.step===i+1?'on':w.step>i+1?'done':''}"><i>${w.step>i+1?'✓':i+1}</i>${s}</div>`).join('')}</div>`;
+  let body='';
+  if(w.step===1)body=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+    <div class="pickcard ${w.type==='comic'?'on':''}" data-act="wtype" data-v="comic"><i data-lucide="image"></i><b>Comic</b><span>Vertical webcomic, page-by-page uploads</span></div>
+    <div class="pickcard ${w.type==='novel'?'on':''}" data-act="wtype" data-v="novel"><i data-lucide="book-open"></i><b>Novel</b><span>Prose chapters with a rich text editor</span></div></div>`;
+  if(w.step===2)body=`
+    <label class="f">Title <span>— you can change it later</span></label><input id="wtitle" class="f-full" value="${esc(w.title)}" placeholder="e.g. The Lighthouse at the End">
+    <label class="f">Description</label><textarea id="wdesc" class="f-full" placeholder="Hook your readers in two or three sentences.">${esc(w.desc)}</textarea>
+    <label class="f">Genres <span>— pick up to 3</span></label><div class="gchips">${DB.genres.map(g=>`<button type="button" class="gchip" data-act="wgenre" data-v="${esc(g)}" style="${w.genres.includes(g)?'border-color:var(--acc);background:var(--acc-soft)':''}"><i style="background:${gcol(g)}"></i>${esc(g)}</button>`).join('')}</div>
+    <label class="f">Status</label><div style="display:flex;gap:8px;flex-wrap:wrap">${['ongoing','completed','hiatus'].map(st=>`<button type="button" class="gchip" data-act="wstatus" data-v="${st}" style="${w.status===st?'border-color:var(--ink);background:var(--ink);color:var(--bg)':''}">${st[0].toUpperCase()+st.slice(1)}</button>`).join('')}</div>
+    <label class="f">Cover</label>
+    <div style="display:flex;gap:16px;align-items:center"><img id="wcov" src="${pic(w.coverSeed,300,450)}" style="width:96px;height:144px;border-radius:12px;object-fit:cover;box-shadow:var(--sh)"><div><button type="button" class="btn btn-out btn-sm" data-act="wcover"><i data-lucide="dice-5"></i>Shuffle cover art</button><p style="font-size:12px;color:var(--mut);margin-top:8px;max-width:280px">Demo covers are auto-generated. In production this becomes an S3 upload with automatic optimization.</p></div></div>`;
+  if(w.step===3)body=`
+    <label class="f">Pricing</label><div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+    <div class="pickcard ${!w.premium?'on':''}" data-act="wprice" data-v="free"><i data-lucide="unlock"></i><b>Free</b><span>All chapters free, forever</span></div>
+    <div class="pickcard ${w.premium?'on':''}" data-act="wprice" data-v="premium"><i data-lucide="lock"></i><b>Premium</b><span>Chapter 1 free, rest behind coins <span class="pill" style="background:var(--acc-soft)">Soon</span></span></div></div>
+    <label class="f">Schedule first publish <span>— optional</span></label><input type="date" id="wsched" class="f-full" style="max-width:240px" value="${w.schedule}">
+    <p style="font-size:13px;color:var(--mut);margin-top:14px;display:flex;gap:8px"><i data-lucide="info" style="width:15px;height:15px"></i>Scheduled chapters release automatically at their set time.</p>`;
+  if(w.step===4)body=`<div style="display:flex;gap:22px;flex-wrap:wrap">
+    <img src="${pic(w.coverSeed,300,450)}" style="width:120px;height:180px;border-radius:12px;object-fit:cover;box-shadow:var(--sh)">
+    <div style="flex:1;min-width:220px"><h3 style="font-size:22px">${esc(w.title)||'Untitled story'}</h3>
+    <div class="gchips" style="margin:10px 0">${w.genres.map(g=>`<span class="gchip"><i style="background:${gcol(g)}"></i>${esc(g)}</span>`).join('')}</div>
+    <p style="color:var(--ink2);font-size:14px">${esc(w.desc)||'No description yet.'}</p>
+    <div class="sstats" style="margin-top:14px"><div><b style="font-size:15px;text-transform:capitalize">${w.type}</b><span>format</span></div><div><b style="font-size:15px;text-transform:capitalize">${w.status}</b><span>status</span></div><div><b style="font-size:15px">${w.premium?'Premium':'Free'}</b><span>pricing</span></div>${w.schedule?`<div><b style="font-size:15px">${w.schedule}</b><span>launch</span></div>`:''}</div></div></div>`;
+  return steps+`<div class="panel wiz">${body}
+    <div style="display:flex;gap:10px;margin-top:26px">
+      ${w.step>1?`<button class="btn btn-out" data-act="wback"><i data-lucide="chevron-left"></i>Back</button>`:''}
+      <span style="flex:1"></span>
+      ${w.step<4?`<button class="btn btn-acc" data-act="wnext">Continue<i data-lucide="chevron-right"></i></button>`
+      :`<button class="btn btn-out" data-act="wdraft">Save as draft</button><button class="btn btn-acc" data-act="wpublish"><i data-lucide="rocket"></i>Publish story</button>`}
+    </div></div>`;
+}
+function wizSync(){const t=$('#wtitle'),d=$('#wdesc'),sc=$('#wsched');if(t)WZ.title=t.value;if(d)WZ.desc=d.value;if(sc)WZ.schedule=sc.value}
+function chaptersHTML(s){
+  if(!s)return notFound();
+  const chs=db.chapters(s.id);
+  return `<a href="#/studio/stories" style="font-size:13px;font-weight:600;color:var(--mut);display:inline-flex;gap:5px;align-items:center"><i data-lucide="arrow-left" style="width:14px;height:14px"></i>All stories</a>
+  <div style="display:flex;gap:16px;align-items:center;margin:14px 0 22px;flex-wrap:wrap">
+    <img class="cthumb" style="width:52px;height:74px;border-radius:10px" src="${coverSrc(s)}">
+    <div style="flex:1"><h1 style="font-size:24px">${esc(s.title)}</h1><div style="font-size:13px;color:var(--mut)">${s.type} · ${chs.length} chapters</div></div>
+    <a class="btn btn-acc" href="#/studio/chapters/${s.id}/new"><i data-lucide="plus"></i>New ${s.type==='comic'?'episode':'chapter'}</a></div>
+  ${chs.length?`<div class="rows">${chs.map(c=>`<div class="row"><span class="num">${c.num}</span><div class="grow"><h4>${esc(c.title||'Untitled')}</h4><div class="meta">${c.published?(c.scheduledFor&&c.scheduledFor>Date.now()?'Scheduled for '+dstr(c.scheduledFor):'Published '+dstr(c.at)):'Draft · saved '+ago(c.at)}${s.type==='comic'?' · '+c.pages.length+' pages':''}${c.num>1&&s.premium?' · premium':''}</div></div>
+    ${c.published?'':'<span class="st draft">draft</span>'}
+    <a class="btn btn-out btn-sm" href="#/studio/chapters/${s.id}/${c.num}">Edit</a>
+    ${c.published?`<a class="ibtn" href="#/read/${s.type}/${s.id}/${c.num}"><i data-lucide="external-link"></i></a>`:`<button class="btn btn-ink btn-sm" data-act="pubch" data-id="${c.id}">Publish</button>`}
+    <button class="ibtn" data-act="delch" data-id="${c.id}"><i data-lucide="trash-2"></i></button></div>`).join('')}</div>`
+  :`<div class="empty"><i data-lucide="layers"></i><h3>No chapters yet</h3><p>Create your first ${s.type==='comic'?'episode':'chapter'} to publish this story.</p><a class="btn btn-acc" style="margin-top:14px" href="#/studio/chapters/${s.id}/new">Create</a></div>`}`;
+}
+let ED={pages:[],drag:null};
+function editStoryHTML(s){
+  return `<h1 style="font-size:26px;margin-bottom:20px">Story details</h1>
+  <form class="panel" data-form="editstory" data-id="${s.id}" style="max-width:620px">
+    <label class="f">Title</label><input name="title" class="f-full" value="${esc(s.title)}">
+    <label class="f">Description</label><textarea name="desc" class="f-full">${esc(s.desc)}</textarea>
+    <label class="f">Status</label><select name="status" class="f-full">${['ongoing','completed','hiatus'].map(x=>`<option ${s.status===x?'selected':''}>${x}</option>`).join('')}</select>
+    <button class="btn btn-ink" style="margin-top:18px">Save</button></form>`;
+}
+/* chapter editor (novel rich text / comic pages) */
+function chapterEditorHTML(s,ch){
+  ED={pages:ch?.pages?[...ch.pages]:[],drag:null};
+  return `<a href="#/studio/chapters/${s.id}" style="font-size:13px;font-weight:600;color:var(--mut);display:inline-flex;gap:5px;align-items:center"><i data-lucide="arrow-left" style="width:14px;height:14px"></i>Back to chapters</a>
+  <h1 style="font-size:24px;margin:12px 0 18px">${ch?'Edit':'New'} ${s.type==='comic'?'episode':'chapter'} <span style="color:var(--mut);font-weight:500;font-size:16px">· ${esc(s.title)}</span></h1>
+  <label class="f">Chapter title</label><input id="chtitle" class="f-full" style="max-width:480px" value="${esc(ch?.title||'')}" placeholder="${s.type==='comic'?'Episode title':'Chapter title'}">
+  ${s.type==='novel'?novelEditor(ch):comicEditor(ch)}
+  <div style="display:flex;gap:10px;margin:22px 0 60px;flex-wrap:wrap">
+    <button class="btn btn-out" data-act="chsave" data-id="${s.id}" data-num="${ch?.num||chsNext(s)}"><i data-lucide="save"></i>Save draft</button>
+    <span style="flex:1"></span>
+    <input type="date" id="chsched" style="max-width:170px" title="Schedule">
+    <button class="btn btn-acc" data-act="chpub" data-id="${s.id}" data-num="${ch?.num||chsNext(s)}"><i data-lucide="rocket"></i>Publish</button></div>`;
+}
+function chsNext(s){const chs=db.chapters(s.id);return chs.length?chs.at(-1).num+1:1}
+function novelEditor(ch){
+  return `<div style="margin-top:18px"><div class="edbar">
+    <button data-act="cmd" data-c="bold" title="Bold"><i data-lucide="bold"></i></button>
+    <button data-act="cmd" data-c="italic" title="Italic"><i data-lucide="italic"></i></button>
+    <button data-act="cmd" data-c="formatBlock:h2" title="Heading"><i data-lucide="heading-2"></i></button>
+    <button data-act="cmd" data-c="formatBlock:blockquote" title="Quote"><i data-lucide="quote"></i></button>
+    <button data-act="cmd" data-c="insertUnorderedList" title="Bullet list"><i data-lucide="list"></i></button>
+    <button data-act="cmd" data-c="insertOrderedList" title="Numbered list"><i data-lucide="list-ordered"></i></button>
+    <button data-act="cmd" data-c="insertHorizontalRule" title="Divider"><i data-lucide="minus"></i></button>
+    <button data-act="cmd" data-c="removeFormat" title="Clear formatting"><i data-lucide="eraser"></i></button>
+    <button data-act="linkopen" title="Link"><i data-lucide="link"></i></button>
+    <input id="linkurl" placeholder="https:// — press Enter" style="display:none">
+    <span style="flex:1"></span>
+    <span id="wc" style="font-size:12px;color:var(--mut);align-self:center;font-weight:600"></span></div>
+    <div class="editor" id="ed" contenteditable="true">${ch?.content||'<p>Once upon a time…</p>'}</div>
+    <p id="chstat" style="font-size:12px;color:var(--mut);margin-top:8px">${ch&&!ch.published?'Draft restored from your last session.':'Autosaves as you write.'}</p></div>`;
+}
+function comicEditor(ch){
+  return `<div style="margin-top:18px"><div class="dropzone" id="dz"><i data-lucide="upload-cloud" style="width:30px;height:30px"></i>
+    <p style="margin-top:8px;font-weight:600;color:var(--ink)">Drag & drop pages here, or click to browse</p>
+    <p style="font-size:12.5px">PNG / JPG / WEBP · auto-resized to 900px width · drag thumbnails to reorder</p>
+    <input type="file" id="pagefile" accept="image/*" multiple hidden></div>
+    <div class="pagemc" id="pages" style="margin-top:16px"></div></div>`;
+}
+function renderPages(){
+  const el=$('#pages');if(!el)return;
+  el.innerHTML=ED.pages.map((p,i)=>`<div class="pg" draggable="true" data-i="${i}"><img src="${p}"><button class="del" data-act="pagedel" data-i="${i}"><i data-lucide="x" style="width:13px;height:13px"></i></button><span class="pn">Page ${i+1}</span></div>`).join('');
+  ic();
+}
+function shrink(file){return new Promise(res=>{const img=new Image();img.onload=()=>{const c=document.createElement('canvas');const w=Math.min(900,img.width);c.width=w;c.height=img.height*w/img.width;c.getContext('2d').drawImage(img,0,0,c.width,c.height);res(c.toDataURL('image/jpeg',.82))};img.src=URL.createObjectURL(file)})}
+
+/* ================= ADMIN ================= */
+function adminHTML(seg){
+  const a=seg[1]||'dash';
+  const menu=[['dash','Dashboard','layout-dashboard'],['users','Users','users'],['stories','Stories','library'],['reports','Reports','flag'],['genres','Categories','tags'],['settings','Settings','settings']];
+  const nav=`<aside class="side"><a class="slogo" href="#/admin">${esc(DB.meta.brand)} Admin</a>${menu.map(m=>`<a href="#/admin/${m[0]}" class="${a===m[0]?'on':''}"><i data-lucide="${m[2]}"></i>${m[1]}</a>`).join('')}<hr><a href="#/"><i data-lucide="arrow-left"></i>Back to site</a></aside>
+  <nav class="mtabs">${menu.map(m=>`<a href="#/admin/${m[0]}" class="${a===m[0]?'on':''}">${m[1]}</a>`).join('')}</nav>`;
+  let main='';
+  if(a==='dash'){
+    const plViews=DB.stories.reduce((x,s)=>x+s.views,0);
+    main=`<h1 style="font-size:26px;margin-bottom:22px">Platform health</h1>
+    <div class="tiles">${statTile('users','Total users',fmt(DB.users.length+84230),'+312 today')}${statTile('zap','Active now',fmt(1439))}${statTile('feather','Creators',DB.users.filter(u=>u.role==='creator').length,`${DB.users.filter(u=>u.verified&&u.role==='creator').length} verified`)}${statTile('library','Stories',DB.stories.filter(s=>!s.deleted).length)}${statTile('layers','Chapters',DB.chapters.length)}${statTile('flag','Open reports',DB.reports.filter(r=>r.status==='pending').length,'needs review')}${statTile('eye','Total views',fmt(plViews))}</div>
+    <div class="duo"><div class="panel"><h3>Reads — last 30 days</h3>${lineChart(series('adminv',30,900,.04))}</div><div class="panel"><h3>New signups</h3>${lineChart(series('adminu',30,40,.05),{color:'var(--teal)'})}</div></div>
+    ${DB.reports.some(r=>r.status==='pending')?`<div class="panel" style="margin-top:16px;border-color:#EAC7BF"><h3><i data-lucide="flag" style="color:var(--red)"></i>${DB.reports.filter(r=>r.status==='pending').length} reports awaiting review</h3><a class="btn btn-ink btn-sm" href="#/admin/reports">Open moderation queue</a></div>`:''}`;
+  }
+  else if(a==='users'){
+    main=`<h1 style="font-size:26px;margin-bottom:20px">Users</h1><div class="panel" style="padding:0;overflow-x:auto"><table class="adm"><tr><th>User</th><th>Role</th><th>Stories</th><th>Status</th><th style="text-align:right">Actions</th></tr>
+    ${DB.users.map(u=>`<tr><td style="display:flex;gap:10px;align-items:center">${avatar(u,'sm')}<b>${esc(u.name)}</b> ${u.verified?'<i data-lucide="badge-check" class="vbadge" style="width:14px;height:14px"></i>':''}<span style="color:var(--mut);font-size:12px">@${esc(u.username)}</span></td>
+    <td><span class="pill" style="background:var(--line2)">${u.role}</span></td><td>${db.stories().filter(s=>s.author===u.id).length}</td>
+    <td>${u.banned?'<span class="pill" style="background:var(--red-soft);color:var(--red)">banned</span>':u.suspended?'<span class="pill" style="background:#F3E5F1;color:var(--mauve)">suspended</span>':'<span class="pill" style="background:var(--teal-soft);color:var(--teal)">active</span>'}</td>
+    <td style="text-align:right;white-space:nowrap">${u.role==='creator'&&!u.verified?`<button class="btn btn-out btn-sm" data-act="verify" data-id="${u.id}">Verify</button>`:''}
+    ${u.id!==me.id?`<button class="btn btn-out btn-sm" data-act="ban" data-id="${u.id}">${u.banned?'Unban':'Ban'}</button>`:''}</td></tr>`).join('')}</table></div>`;
+  }
+  else if(a==='stories'){
+    main=`<h1 style="font-size:26px;margin-bottom:20px">Stories</h1><div class="rows">${DB.stories.filter(s=>!s.deleted).map(s=>`<div class="row">
+      <img class="cthumb" style="width:40px;height:56px;border-radius:8px" src="${coverSrc(s)}">
+      <div class="grow"><h4>${esc(s.title)}</h4><div class="meta">${esc(au(s).name)} · ${s.type} · ${fmt(s.views)} views</div></div>
+      ${s.featured?'<span class="pill" style="background:var(--acc-soft);color:var(--acc-ink)">featured</span>':''}
+      <button class="ibtn" data-act="feat" data-id="${s.id}" title="Toggle featured" style="color:${s.featured?'var(--acc)':''}"><i data-lucide="star"></i></button>
+      <a class="ibtn" href="#/story/${s.id}"><i data-lucide="external-link"></i></a>
+      <button class="ibtn" data-act="admDelStory" data-id="${s.id}"><i data-lucide="trash-2"></i></button></div>`).join('')}</div>`;
+  }
+  else if(a==='reports'){
+    main=`<h1 style="font-size:26px;margin-bottom:20px">Moderation queue</h1>
+    ${DB.reports.length?DB.reports.map(r=>`<div class="panel" style="margin-bottom:12px"><div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap">
+      <div style="flex:1;min-width:240px"><span class="pill" style="background:var(--red-soft);color:var(--red)">${esc(r.reason)}</span> <span class="pill" style="background:var(--line2)">${esc(r.targetType)}</span>
+      <p style="margin-top:10px;font-size:14px;color:var(--ink2)">“${esc(r.details)}”</p>
+      <p style="font-size:12px;color:var(--mut);margin-top:6px">Reported by ${esc(db.user(r.reporter)?.name||'a user')} · ${ago(r.at)} · <a href="javascript:void(0)" data-act="viewTarget" data-t="${r.targetType}" data-id="${r.targetId}" style="color:var(--acc-deep)">view target</a></p></div>
+      ${r.status!=='pending'?`<span class="pill" style="background:var(--teal-soft);color:var(--teal)">${r.status}</span>`:`<div style="display:flex;gap:8px">
+      <button class="btn btn-out btn-sm" data-act="rdismiss" data-id="${r.id}">Dismiss</button>
+      <button class="btn btn-ink btn-sm" data-act="rremove" data-id="${r.id}">Remove content</button>
+      <button class="btn btn-sm" style="background:var(--red);color:#fff" data-act="rsuspend" data-id="${r.id}">Suspend</button></div>`}</div></div>`).join('')
+    :`<div class="empty"><i data-lucide="shield-check"></i><h3>All clear</h3><p>No reports in the queue.</p></div>`}`;
+  }
+  else if(a==='genres'){
+    main=`<h1 style="font-size:26px;margin-bottom:20px">Categories & tags</h1><div class="panel" style="max-width:640px">
+    <div class="gchips">${DB.genres.map(g=>`<span class="gchip"><i style="background:${gcol(g)}"></i>${esc(g)}<button data-act="gdel" data-v="${esc(g)}" style="margin-left:4px;color:var(--mut)"><i data-lucide="x" style="width:12px;height:12px"></i></button></span>`).join('')}</div>
+    <form data-form="gadd" style="display:flex;gap:8px;margin-top:18px"><input name="g" placeholder="New genre name" style="flex:1"><button class="btn btn-ink btn-sm">Add genre</button></form></div>`;
+  }
+  else if(a==='settings'){
+    main=`<h1 style="font-size:26px;margin-bottom:8px">Brand & settings</h1><p style="color:var(--mut);margin-bottom:20px">Rename the platform or repaint the accent — the whole UI follows.</p>
+    <form class="panel" data-form="brand" style="max-width:520px">
+      <label class="f">Platform name</label><input name="brand" class="f-full" value="${esc(DB.meta.brand)}">
+      <label class="f">Accent color</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">${['#E8930C','#B9402F','#22635A','#5B4B8A','#C2622B'].map(c=>`<button type="button" class="ibtn" data-act="accset" data-v="${c}" style="background:${c};border:3px solid ${c===DB.meta.accent?'var(--ink)':'transparent'};width:34px;height:34px"></button>`).join('')}
+      <input type="color" name="accent" value="${DB.meta.accent}" style="width:52px;height:38px;padding:3px"></div>
+      <button class="btn btn-ink" style="margin-top:18px">Save settings</button></form>`;
+  }
+  return `<div class="wrap shell">${nav}<div>${main}</div></div>`+footerHTML();
+}
+
+/* ================= AUTH ================= */
+function openAuth(tab='in'){
+  modal(`<div style="display:flex;gap:18px;align-items:center;margin-bottom:6px"><svg viewBox="0 0 32 32" fill="none" width="34"><path d="M16 2C10 2 5.5 9.5 5.5 17.5 5.5 24.7 10.2 30 16 30s10.5-5.3 10.5-12.5C26.5 9.5 22 2 16 2Z" fill="var(--acc)"/><path d="M10 17l3-2 3 3 3-4 3 2" stroke="#fff" stroke-width="2.2"/></svg><h3 style="font-size:24px">${tab==='in'?'Welcome back':'Join '+esc(DB.meta.brand)}</h3></div>
+  <p class="sub">${tab==='in'?'Your library, follows and progress are waiting.':'Free forever. Publish or just read — both count.'}</p>
+  <div class="seg" style="display:flex;gap:4px;background:var(--line2);border-radius:11px;padding:4px;margin-bottom:16px">
+    <button style="flex:1;padding:8px;border-radius:8px;font-weight:700;background:${tab==='in'?'#fff':'transparent'}" data-act="authTab" data-v="in">Sign in</button>
+    <button style="flex:1;padding:8px;border-radius:8px;font-weight:700;background:${tab==='up'?'#fff':'transparent'}" data-act="authTab" data-v="up">Create account</button></div>
+  ${tab==='in'?`<form data-form="signin"><label class="f">Email</label><input name="email" class="f-full" type="email" required placeholder="you@example.com">
+  <label class="f">Password</label><input name="pass" class="f-full" type="password" required placeholder="••••••••">
+  <div style="text-align:right;margin-top:6px"><button type="button" data-act="forgot" style="font-size:12.5px;color:var(--acc-deep);font-weight:600">Forgot password?</button></div>
+  <button class="btn btn-acc f-full" style="justify-content:center;margin-top:12px">Sign in</button></form>
+  <div class="demo-pick"><button data-act="demo" data-v="reader"><i data-lucide="book-open" style="width:13px;height:13px;vertical-align:-2px"></i> Demo reader</button><button data-act="demo" data-v="creator"><i data-lucide="feather" style="width:13px;height:13px;vertical-align:-2px"></i> Demo creator</button><button data-act="demo" data-v="admin"><i data-lucide="shield" style="width:13px;height:13px;vertical-align:-2px"></i> Demo admin</button></div>`
+  :`<form data-form="signup"><label class="f">Display name</label><input name="name" class="f-full" required placeholder="How readers will know you">
+  <label class="f">Email</label><input name="email" class="f-full" type="email" required>
+  <label class="f">Password <span>— 8+ characters</span></label><input name="pass" class="f-full" type="password" minlength="8" required>
+  <label class="f">I want to…</label><div style="display:flex;gap:10px"><label class="radios" style="flex:1;margin:0"><input type="radio" name="role" value="user" checked> Read stories</label><label class="radios" style="flex:1;margin:0"><input type="radio" name="role" value="creator"> Publish stories</label></div>
+  <button class="btn btn-acc f-full" style="justify-content:center;margin-top:16px">Create account</button>
+  <p style="font-size:12px;color:var(--mut);margin-top:10px;text-align:center">A verification email would be sent here in production.</p></form>`}
+  <button class="btn btn-out f-full" style="justify-content:center;margin-top:10px" data-act="gsign"><i data-lucide="chrome" style="width:15px;height:15px"></i>Continue with Google</button>`);
+}
+function signIn(id,msg){me=DB.users.find(u=>u.id===id);localStorage.setItem(SESSKEY,id);closeModal();renderChrome();toast(msg||`Welcome back, ${me.name.split(' ')[0]}!`);route()}
+
+/* ================= ACTIONS ================= */
+const A={
+  rail(d,el){const rail=$('#'+d.id);if(!rail)return;rail.dataset.pauseUntil=Date.now()+1400;rail.scrollBy({left:+d.dir*(rail.clientWidth*.8),behavior:'smooth'})},
+  searchOpen(){$('#spanel').classList.toggle('open');if($('#spanel').classList.contains('open'))$('#sinput').focus();else sSearch('')},
+  bell(d,el){
+    if($('.dd#ndd')){$('.dd#ndd').remove();return}
+    const list=db.notifs();
+    closeDD();
+    el.insertAdjacentHTML('beforebegin',`<div class="dd" id="ndd"><div class="dd-h">Notifications ${list.length?'<button data-act="nall">Mark all read</button>':''}</div>
+    ${list.length?list.slice(0,9).map(n=>`<button class="nrow ${n.read?'':'unread'}" data-act="nclick" data-id="${n.id}" data-link="${n.link}"><span class="nico"><i data-lucide="${{chapter:'book-open',follow:'user-plus',like:'heart',comment:'message-square',report:'flag'}[n.type]||'bell'}"></i></span><span><p>${esc(n.text)}</p><span class="t">${ago(n.at)}</span></span></button>`).join('')
+    :`<div class="empty" style="padding:34px"><i data-lucide="bell-off"></i><p>You're all caught up.</p></div>`}</div>`);ic();
+    $('#ndd').addEventListener('click',e=>e.stopPropagation())},
+  nclick(d,el){const n=db.notifs().find(x=>x.id===d.id);if(n)n.read=true;save();renderChrome();location.hash=d.link;closeDD()},
+  nall(){db.notifs().forEach(n=>n.read=true);save();renderChrome();closeDD();toast('All caught up')},
+  umenu(d,el){
+    if($('.dd#udd')){$('.dd#udd').remove();return}
+    closeDD();
+    el.insertAdjacentHTML('beforebegin',`<div class="dd udd" id="udd">
+    <div style="padding:14px 16px;border-bottom:1px solid var(--line2);display:flex;gap:11px;align-items:center">${avatar(me,'sm')}<div><b style="font-size:14px">${esc(me.name)}</b><div style="font-size:12px;color:var(--mut)">@${esc(me.username)} · ${me.role}</div></div></div>
+    <a href="#/creator/${me.username}"><i data-lucide="user"></i>My profile</a>
+    <a href="#/library"><i data-lucide="library"></i>My library</a>
+    <a href="#/studio"><i data-lucide="layout-dashboard"></i>Creator Studio</a>
+    ${isAdmin()?`<a href="#/admin"><i data-lucide="shield"></i>Admin panel</a>`:''}<hr>
+    <button data-act="signout"><i data-lucide="log-out"></i>Sign out</button></div>`);ic();
+    $('#udd').addEventListener('click',e=>e.stopPropagation())},
+  authOpen(){closeDD();openAuth()},
+  authTab(d){openAuth(d.v)},
+  demo(d){signIn({reader:'u_reader',creator:'u_mira',admin:'u_admin'}[d.v])},
+  gsign(){toast('Google OAuth connects in the production build — try the demo accounts below','info')},
+  forgot(){modal(`<h3>Reset your password</h3><p class="sub">Enter your email and we'll send reset instructions.</p><form data-form="forgot"><input name="email" class="f-full" type="email" required placeholder="you@example.com"><button class="btn btn-acc f-full" style="justify-content:center;margin-top:14px">Send reset link</button></form>`)},
+  signout(){me=null;localStorage.removeItem(SESSKEY);renderChrome();toast('Signed out — see you in the next chapter');location.hash='#/';route()},
+  modalClose(d,el,e){if(e.target===el)closeModal()},
+  modalClose2(){closeModal()},
+  unlock(){toast('Coin unlocks arrive with the monetization release','lock')},
+  soon(d){toast(d.m||'Coming soon','clock')},
+  lib(d,el){if(!me)return openAuth();db.toggleLib(d.id);
+    $$(`[data-act="lib"][data-id="${d.id}"]`).forEach(b=>{b.classList.toggle('on',inLib(d.id))});
+    toast(inLib(d.id)?'Added to your library':'Removed from library','bookmark');},
+  likeStory(d,el){if(!me)return openAuth();db.toggleLike(d.id);
+    $$(`[data-act="likeStory"][data-id="${d.id}"]`).forEach(b=>b.style.color=isLiked(d.id)?'var(--red)':'');
+    toast(isLiked(d.id)?'Liked — the author felt that':'Like removed','heart')},
+  follow(d){if(!me)return openAuth();db.toggleFollow(d.id);const f=isFoll(d.id);
+    $$(`[data-act="follow"][data-id="${d.id}"]`).forEach(b=>{b.classList.toggle('following',f);b.innerHTML=b.classList.contains('btn-sm')?(f?'Following':'Follow'):`<i data-lucide="${f?'user-check':'user-plus'}"></i>${f?'Following':'Follow'}`});
+    toast(f?`Now following ${db.user(d.id).name}`:'Unfollowed','users');ic()},
+  share(d){const url=location.origin+location.pathname+'#/story/'+d.id;
+    (navigator.clipboard?.writeText(url)||Promise.reject()).then(()=>toast('Link copied to clipboard','share-2')).catch(()=>toast(url,'share-2'))},
+  report(d){if(!me)return openAuth();
+    modal(`<h3>Report ${esc(d.t)}</h3><p class="sub">Our moderation team reviews every report.</p>
+    <form data-form="report"><input type="hidden" name="t" value="${d.t}"><input type="hidden" name="id" value="${d.id}">
+    <div class="radios">${['Spam','Copyright','Harassment','Inappropriate content','Violence','Other'].map((r,i)=>`<label><input type="radio" name="reason" value="${r}" ${i===0?'checked':''}>${r}</label>`).join('')}</div>
+    <label class="f">Details <span>— optional</span></label><textarea name="details" class="f-full" style="min-height:70px"></textarea>
+    <button class="btn btn-acc f-full" style="justify-content:center;margin-top:12px">Submit report</button></form>`)},
+  clike(d,el){if(!me)return openAuth();const c=DB.comments.find(x=>x.id===d.id);const i=c.likes.indexOf(me.id);i<0?c.likes.push(me.id):c.likes.splice(i,1);save();
+    el.classList.toggle('on',i<0);el.innerHTML=`<i data-lucide="heart" style="width:13px;height:13px"></i>${c.likes.length||''}`;ic()},
+  creply(d,el){if(!me)return openAuth();if(el.nextElementSibling?.classList.contains('replybox')){el.nextElementSibling.remove();return}
+    el.insertAdjacentHTML('afterend',`<form class="replybox" data-form="reply" data-p="${d.id}" style="display:flex;gap:8px;margin-top:10px"><input name="text" style="flex:1" placeholder="Write a reply…" required><button class="btn btn-ink btn-sm">Reply</button></form>`)},
+  creplyStory(d,el){A.creply(d,el)},
+  cdel(d,el){if(A._confirm('Delete this comment?')){db.deleteComment(d.id);el.closest('.cmt').style.opacity=.3;setTimeout(()=>route(),250)}},
+  _confirm(msg){return window.confirm(msg)},
+  pdel(d){if(A._confirm('Delete this post?')){const p=DB.posts.find(x=>x.id===d.id);p.deleted=true;save();toast('Post deleted','trash-2');route()}},
+  plike(d,el){if(!me)return openAuth();DB.likes[d.id]=DB.likes[d.id]||[];const a=DB.likes[d.id],i=a.indexOf(me.id);i<0?a.push(me.id):a.splice(i,1);save();
+    el.classList.toggle('on',i<0);el.innerHTML=`<i data-lucide="heart" style="width:15px;height:15px"></i>${a.length||'Like'}`;ic()},
+  ptoggle(d,el){const box=$('#pc-'+d.id);const open=box.style.display==='none';box.style.display=open?'block':'none';if(open)ic()},
+  ptype(d,el){$$('#ptypeval').forEach(i=>i.value=d.v);$$('.typepick button').forEach(b=>b.classList.toggle('on',b===el))},
+  ltab(d){location.hash='#/library?t='+d.v},
+  chsel(d,el){if($('#chseld')){$('#chseld').remove();return}const s=db.story(d.sid||d.id);
+    el.closest('.rbar').insertAdjacentHTML('beforeend',`<div class="dd" id="chseld" style="left:12px;right:auto;width:290px;max-height:400px;overflow:auto"><div class="dd-h">Chapters</div>
+    ${db.chapters(s.id).map(c=>`<a class="nrow" href="#/read/${s.type}/${s.id}/${c.num}"><span class="num" style="width:28px;font-family:var(--fd);font-weight:800">${c.num}</span><span><p style="font-weight:600;color:var(--ink)">${esc(c.title)}</p></span></a>`).join('')}</div>`)},
+  dfilter(d){D.type=d.v;D.n=8;D.busy=false;$$('#dfilters [data-k="type"]').forEach(b=>{const active=b.dataset.v===D.type;b.style.cssText=active?'border-color:var(--ink);background:var(--ink);color:var(--bg)':''});drender()},
+  dgenreToggle(d,el){const menu=$('#dgenre-menu'),open=menu.hidden;menu.hidden=!open;el.setAttribute('aria-expanded',String(open))},
+  dgenre(d){if(D.genres.has(d.v))D.genres.delete(d.v);else D.genres.add(d.v);D.n=8;D.busy=false;$$('[data-act="dgenre"]').forEach(b=>{const active=D.genres.has(b.dataset.v);b.setAttribute('aria-pressed',String(active));b.querySelector('.genre-check').textContent=active?'✓':''});const label=$('#dgenre-label'),trigger=$('.genre-trigger'),count=$('.genre-count');label.textContent=D.genres.size?`${D.genres.size} genres selected`:'Filter by genre';count.textContent=D.genres.size;trigger.classList.toggle('has-selection',D.genres.size>0);$('#manga-source').style.display=D.genres.has('Manga')?'block':'none';$('#manga-directory').hidden=!D.genres.has('Manga');drender();ic()},
+  dgenreClear(){D.genres.clear();D.n=8;D.busy=false;$$('[data-act="dgenre"]').forEach(b=>{b.setAttribute('aria-pressed','false');b.querySelector('.genre-check').textContent=''});$('#dgenre-label').textContent='Filter by genre';$('.genre-count').textContent='0';$('.genre-trigger').classList.remove('has-selection');$('#manga-source').style.display='none';$('#manga-directory').hidden=true;drender()},
+  ctheme(){const reader=$('#comic-reader');if(!reader)return;const theme=reader.classList.contains('rdark')?'light':'dark';reader.classList.toggle('rdark',theme==='dark');reader.classList.toggle('rlight',theme==='light');localStorage.setItem('hatch-comic-theme',theme);pset('comicTheme',theme);const button=$('[data-act="ctheme"]');button.title=`Switch to ${theme==='dark'?'light':'dark'} mode`;button.setAttribute('aria-label',button.title);button.innerHTML=`<i data-lucide="${theme==='dark'?'sun':'moon'}"></i>`;ic()},
+  fit(){$('#cbody').classList.toggle('fit')},
+  fullscreen(){document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen()},
+  prevch(d,el){if(el.disabled)return;location.hash=`#/read/${db.story(d.id).type}/${d.id}/${+d.n-1}`},
+  nextch(d){const s=db.story(d.id);const n=+d.n+1;if(db.chapters(s.id).find(c=>c.num===n))location.hash=`#/read/${s.type}/${s.id}/${n}`;else{toast('You\'re all caught up — latest chapter reached','flag');location.hash='#/story/'+s.id}},
+  toc(){if($('#tocd')){$('#tocd').remove();$('#scrimd').remove();return}const s=db.story(d.id);
+    document.body.insertAdjacentHTML('beforeend',`<div class="scrim" id="scrimd" data-act="tocx"></div><div class="drawer open" id="tocd"><div class="dh"><b style="font-family:var(--fd);font-size:17px">${esc(s.title)}</b><button class="ibtn" data-act="tocx"><i data-lucide="x"></i></button></div><div class="db">
+    ${db.chapters(s.id).map(c=>`<button data-act="tocgo" data-n="${c.num}" data-id="${s.id}" data-t="${s.type}" class="${c.num===+location.hash.split('/').pop()?'on':''}"><b>Ch. ${c.num}</b> — ${esc(c.title)}</button>`).join('')}</div></div>`);ic()},
+  tocx(){$('#tocd')?.remove();$('#scrimd')?.remove()},
+  tocgo(d){A.tocx();location.hash=`#/read/${d.t}/${d.id}/${d.n}`},
+  nset(d,el){const box=$('#nsetbox');if(box.innerHTML){box.innerHTML='';return}
+    const p=me?DB.prefs[me.id]||{fs:19,ff:'var(--fd)',theme:'sepia',rw:680,lh:1.85}:{fs:19,ff:'var(--fd)',theme:'sepia',rw:680,lh:1.85};
+    box.innerHTML=`<div class="settings"><label>Theme</label><div class="seg">${[['light','sun','light'],['sepia','book-open','sepia'],['dark','moon','dark']].map(t=>`<button data-act="ntheme" data-v="${t[2]}" class="${p.theme===t[2]?'on':''}">${t[1]}</button>`).join('')}</div>
+    <label>Font size — <b id="fsval">${p.fs}px</b></label><div class="seg"><button data-act="nfs" data-v="-">A−</button><button data-act="nfs" data-v="+">A+</button></div>
+    <label>Typeface</label><div class="seg">${[['serif','Fraunces','var(--fd)'],['sans','Instrument','var(--fb)']].map(f=>`<button data-act="nff" data-v="${f[2]}" class="${p.ff===f[2]?'on':''}">${f[1]}</button>`).join('')}</div>
+    <label>Line height</label><div class="seg">${[1.7,1.85,2.05].map(l=>`<button data-act="nlh" data-v="${l}" class="${p.lh==l?'on':''}">${l}</button>`).join('')}</div>
+    <label>Width</label><div class="seg">${[580,680,800].map(w=>`<button data-act="nrw" data-v="${w}" class="${p.rw==w?'on':''}">${w}px</button>`).join('')}</div></div>`;
+    ic()},
+  ntheme(d){const rd=$('#nrd');rd.className='rd r'+d.v;pset('theme',d.v);$$('.seg [data-act=ntheme]').forEach(b=>b.classList.toggle('on',b.dataset.v===d.v))},
+  nfs(d){const cur=parseInt(getComputedStyle($('#nrd')).fontSize);const v=Math.min(28,Math.max(15,cur+(d.v==='+'?2:-2)));$('#nrd').style.setProperty('--fs',v+'px');$('#fsval').textContent=v+'px';pset('fs',v)},
+  nff(d){$('#nrd').style.setProperty('--ff',d.v);pset('ff',d.v);$$('.seg [data-act=nff]').forEach(b=>b.classList.toggle('on',b.dataset.v===d.v))},
+  nlh(d){$('#nrd').style.setProperty('--lh',d.v);pset('lh',+d.v)},
+  nrw(d){$('#nrd').style.setProperty('--rw',d.v+'px');pset('rw',+d.v)},
+  /* studio */
+  wtype(d){WZ.type=d.v;$$('#wizbox .pickcard')[0].classList.toggle('on',d.v==='comic');$$('#wizbox .pickcard')[1].classList.toggle('on',d.v==='novel')},
+  wgenre(d){const i=WZ.genres.indexOf(d.v);if(i>=0)WZ.genres.splice(i,1);else if(WZ.genres.length<3)WZ.genres.push(d.v);else return toast('Pick up to 3 genres','info');$$('[data-act=wgenre]').forEach(b=>b.style.cssText=WZ.genres.includes(b.dataset.v)?'border-color:var(--acc);background:var(--acc-soft)':'')},
+  wstatus(d){WZ.status=d.v;$$('[data-act=wstatus]').forEach(b=>{const on=b.dataset.v===d.v;b.style.cssText=on?'border-color:var(--ink);background:var(--ink);color:var(--bg)':''})},
+  wcover(){WZ.coverSeed='cs'+Math.random().toString(36).slice(2,8);$('#wcov').src=pic(WZ.coverSeed,300,450)},
+  wprice(d){WZ.premium=d.v==='premium';A.wtype({v:WZ.type})},
+  wnext(){wizSync();if(WZ.step===2&&!WZ.title.trim())return toast('Give your story a title first','info');if(WZ.step===2&&!WZ.genres.length)return toast('Pick at least one genre','info');WZ.step++;$('#wizbox').innerHTML=wizStep();ic()},
+  wback(){wizSync();WZ.step--;$('#wizbox').innerHTML=wizStep();ic()},
+  wpublish(){WZ.published=true;wizCommit()},
+  wdraft(){WZ.published=false;wizCommit()},
+  chsave(d){chCommit(d.id,+d.num,false)},
+  chpub(d){chCommit(d.id,+d.num,true)},
+  pubch(d){const c=DB.chapters.find(x=>x.id===d.id);c.published=true;c.at=Date.now();const s=DB.stories.find(x=>x.id===c.storyId);s.updAt=Date.now();save();notifyFollowers(s);toast('Chapter published','rocket');route()},
+  delch(d){if(A._confirm('Delete this chapter?')){const c=DB.chapters.find(x=>x.id===d.id);c.deleted=true;save();toast('Chapter deleted');route()}},
+  delstory(d){if(A._confirm('Delete this story and all its chapters?')){const s=DB.stories.find(x=>x.id===d.id);s.deleted=true;DB.chapters.forEach(c=>{if(c.storyId===d.id)c.deleted=true});save();toast('Story removed','trash-2');route()}},
+  admDelStory(d){if(A._confirm('Remove this story from the platform?')){const s=DB.stories.find(x=>x.id===d.id);s.deleted=true;save();notify(s.author,'report',`Your story "${s.title}" was removed after review.`,'#/studio');toast('Story removed and author notified','shield');route()}},
+  feat(d){const s=DB.stories.find(x=>x.id===d.id);s.featured=!s.featured;save();if(s.featured)notify(s.author,'report',`"${s.title}" was featured on the homepage.`,'#/story/'+s.id);toast(s.featured?'Featured on homepage':'Removed from featured','star');route()},
+  verify(d){DB.users.find(u=>u.id===d.id).verified=1;save();notify(d.id,'report','Your creator profile is now verified. Welcome to the front page.','');toast('Creator verified','badge-check');route()},
+  ban(d){const u=DB.users.find(x=>x.id===d.id);u.banned=!u.banned;save();toast(u.banned?`${u.name} banned`:`${u.name} reinstated`,'shield');route()},
+  rdismiss(d){DB.reports.find(r=>r.id===d.id).status='dismissed';save();toast('Report dismissed');route()},
+  rremove(d){const r=DB.reports.find(x=>x.id===d.id);removeTarget(r);r.status='resolved';save();toast('Content removed','shield');route()},
+  rsuspend(d){const r=DB.reports.find(x=>x.id===d.id);const tid=r.targetType==='user'?r.targetId:targetOwner(r);if(tid){DB.users.find(u=>u.id===tid).suspended=true}r.status='resolved';save();toast('Account suspended','shield');route()},
+  viewTarget(d){const s=d.t==='story'?DB.stories.find(x=>x.id===d.id)?.slug:null;if(s)location.hash='#/story/'+d.id;else toast('Target is a comment or user profile','info')},
+  gdel(d){DB.genres=DB.genres.filter(g=>g!==d.v);save();toast('Genre removed','tags');route()},
+  accset(d,el){$('input[name=accent]').value=d.v},
+  range(d){$$('[data-act=range]').forEach(b=>b.classList.toggle('on',b===el));$('#anbox').innerHTML=rangeBox(+d.v);ic()},
+  resetDemo(){if(A._confirm('Reset all demo data? This wipes your local changes.')){localStorage.removeItem(DBKEY);localStorage.removeItem(SESSKEY);location.reload()}},
+};
+function closeDD(){$('#ndd')?.remove();$('#udd')?.remove()}
+document.addEventListener('click',e=>{closeDD();if(!e.target.closest('.genre-filter')){const menu=$('#dgenre-menu'),trigger=$('.genre-trigger');if(menu)menu.hidden=true;if(trigger)trigger.setAttribute('aria-expanded','false')}});
+document.addEventListener('click',e=>{
+  const el=e.target.closest('[data-act]');if(!el)return;
+  if(el.closest('a')){e.preventDefault();e.stopPropagation()}
+  if(el.dataset.act==='modalClose'){if(e.target===el)closeModal();return}
+  A[el.dataset.act]?.(el.dataset,el,e);
+});
+document.addEventListener('change',e=>{
+  const el=e.target.closest('[data-act=dsort]');if(el){D.sort=el.value;D.n=8;drender()}
+});
+function pset(k,v){if(me){DB.prefs[me.id]=DB.prefs[me.id]||{};DB.prefs[me.id][k]=v;save()}}
+function removeTarget(r){
+  if(r.targetType==='story'){const s=DB.stories.find(x=>x.id===r.targetId);if(s)s.deleted=true}
+  if(r.targetType==='comment'){const c=DB.comments.find(x=>x.id===r.targetId);if(c)c.deleted=true}
+  if(r.targetType==='post'){const p=DB.posts.find(x=>x.id===r.targetId);if(p)p.deleted=true}
+}
+function targetOwner(r){const s=DB.stories.find(x=>x.id===r.targetId);return s?.author||null}
+function notifyFollowers(s){Object.keys(DB.follows).filter(k=>k.endsWith(':'+s.author)).forEach(k=>notify(k.split(':')[0],'chapter',`New ${s.type} chapter of "${s.title}" is live.`,'#/story/'+s.id))}
+/* search */
+function sSearch(q){
+  const box=$('#sres');if(!box)return;q=q.trim().toLowerCase();
+  if(!q){box.innerHTML=`<div class="sc">Trending searches</div>${['moonlight','kingdom','romance','horror'].map(t=>`<a href="#/discover?q=${t}"><i data-lucide="trending-up" style="width:15px;height:15px;color:var(--mut)"></i>${t}</a>`).join('')}`;ic();return}
+  const st=db.stories().filter(s=>s.title.toLowerCase().includes(q)).slice(0,4);
+  const us=DB.users.filter(u=>u.name.toLowerCase().includes(q)||u.username.includes(q)).slice(0,2);
+  const gs=DB.genres.filter(g=>g.toLowerCase().includes(q)).slice(0,2);
+  box.innerHTML=(st.length?`<div class="sc">Stories</div>`+st.map(s=>`<a href="#/story/${s.id}"><span class="sthumb" style="background-image:url(${coverSrc(s)})"></span><span><b style="font-size:14px">${esc(s.title)}</b><div style="font-size:12px;color:var(--mut)">${esc(au(s).name)} · ${s.type}</div></span></a>`).join(''):'')
+  +(us.length?`<div class="sc">Authors</div>`+us.map(u=>`<a href="#/creator/${u.username}">${avatar(u,'sm')}<b style="font-size:14px">${esc(u.name)}</b><span style="font-size:12px;color:var(--mut)">${fmt(db.followers(u))} followers</span></a>`).join(''):'')
+  +(gs.length?`<div class="sc">Genres</div>`+gs.map(g=>`<a href="#/discover?g=${encodeURIComponent(g)}"><i data-lucide="tag" style="width:15px;height:15px;color:var(--mut)"></i>${esc(g)}</a>`).join(''):'')
+  ||`<div class="empty" style="padding:24px"><p>No matches for “${esc(q)}”.</p></div>`;ic();
+}
+document.addEventListener('input',e=>{if(e.target.id==='sinput')sSearch(e.target.value)});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&e.target.id==='sinput'&&e.target.value.trim()){location.hash='#/discover?q='+encodeURIComponent(e.target.value.trim());$('#spanel').classList.remove('open')}
+  if(e.key==='Escape'){$('#spanel')?.classList.remove('open');closeModal();closeDD()}
+});
+/* forms */
+const F={
+  signin(f){const u=DB.users.find(x=>x.id==='u_'+(f.email.value.split('@')[0])&&x.pass===f.pass.value)||DB.users.find(x=>x.email===f.email.value&&x.pass===f.pass.value)||DB.users.find(x=>x.id==='u_'+f.email.value.split('@')[0]);
+    const email=f.email.value.toLowerCase();
+    const found=DB.users.find(u=>(u.email||'').toLowerCase()===email||u.username+'@hatch.ink'===email||u.username===email);
+    if(!found)return toast('No account with that email — try a demo button below','alert-triangle');
+    if(found.banned)return toast('This account has been suspended','shield');
+    signIn(found.id)},
+  signup(f){if(DB.users.some(u=>u.username===f.email.value.split('@')[0].toLowerCase()))return toast('That username is taken','alert-triangle');
+    const role=f.role.value;
+    const u={id:'u_'+Date.now(),username:f.email.value.split('@')[0].toLowerCase().slice(0,16),name:f.name.value,role,verified:0,color:GENC[Math.floor(Math.random()*GENC.length)],bio:'New here — say hi.',fBase:0,links:[],email:f.email.value};
+    DB.users.push(u);save();signIn(u.id,`Welcome to ${DB.meta.brand}, ${u.name.split(' ')[0]}!`)},
+  forgot(f){closeModal();toast('Reset link sent to '+f.email.value+' (demo)','mail')},
+  comment(f){const c=db.addComment(f.dataset.t,f.dataset.id,f.text.value.trim());f.text.value='';
+    const list=DB.comments.filter(x=>x.target===f.dataset.t&&x.targetId===f.dataset.id&&!x.deleted);
+    const cl=$('#clist')||$('#pcl-'+f.dataset.id);if(cl)cl.innerHTML=commentList(list);ic();toast('Comment posted','message-square')},
+  reply(f){const parent=DB.comments.find(x=>x.id===f.dataset.p);
+    const tgt=parent.target==='story'?parent.targetId:parent.targetId;
+    db.addComment(parent.target,parent.targetId,f.text.value.trim(),parent.id);f.closest('.replybox').remove();
+    const list=DB.comments.filter(x=>x.target===parent.target&&x.targetId===parent.targetId&&!x.deleted);
+    const cl=$('#clist')||$('#pcl-'+parent.targetId);if(cl)cl.innerHTML=commentList(list);ic()},
+  post(f){db.addPost(f.type.value,f.text.value.trim());toast('Posted to the feed','send');route()},
+  report(f){DB.reports.unshift({id:'r_'+Date.now(),targetType:f.t.value,targetId:f.id.value,reporter:me.id,reason:f.reason.value,details:f.details.value.trim(),status:'pending',at:Date.now()});
+    DB.users.filter(u=>u.role==='admin').forEach(u=>notify(u.id,'report','A new report needs review.','#/admin/reports'));save();closeModal();toast('Report submitted — thank you','shield')},
+  pf(f){me.name=f.name.value.trim()||me.name;me.bio=f.bio.value.trim();save();toast('Profile saved','check')},
+  editstory(f){const s=DB.stories.find(x=>x.id===f.dataset.id);s.title=f.title.value.trim()||s.title;s.desc=f.desc.value.trim();s.status=f.status.value;save();toast('Story updated','check');route()},
+  gadd(f){const g=f.g.value.trim();if(g&&!DB.genres.includes(g)){DB.genres.push(g);save();toast('Genre added','tags');route()}},
+  brand(f){DB.meta.brand=f.brand.value.trim()||'Hatch';DB.meta.accent=f.accent.value;save();applyBrand();toast('Branding updated','check');route()},
+};
+document.addEventListener('submit',e=>{const f=e.target;if(f.dataset.form){e.preventDefault();F[f.dataset.form]?.(f)}});
+/* editor live wiring */
+document.addEventListener('input',e=>{
+  if(e.target.id==='ed'){const words=e.target.innerText.trim().split(/\s+/).filter(Boolean).length;
+    $('#wc').textContent=words+' words';
+    clearTimeout(A._edT);A._edT=setTimeout(()=>{$('#chstat').textContent='Draft saved · '+new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})},900)}
+});
+document.addEventListener('keydown',e=>{if(e.target.id==='linkurl'&&e.key==='Enter'){e.preventDefault();document.execCommand('createLink',false,e.target.value);e.target.style.display='none';e.target.value=''}});
+/* comic page upload + reorder */
+document.addEventListener('click',e=>{if(e.target.closest('#dz'))$('#pagefile')?.click()});
+document.addEventListener('change',async e=>{
+  if(e.target.id==='pagefile'){for(const f of e.target.files)ED.pages.push(await shrink(f));e.target.value='';renderPages();ic();toast(ED.pages.length+' pages ready','image')}
+});
+document.addEventListener('dragover',e=>{const dz=e.target.closest('#dz');if(dz){e.preventDefault();dz.classList.add('over')}});
+document.addEventListener('dragleave',e=>{e.target.closest?.('#dz')?.classList.remove('over')});
+document.addEventListener('drop',async e=>{const dz=e.target.closest('#dz');if(dz){e.preventDefault();dz.classList.remove('over');for(const f of e.dataTransfer.files)if(f.type.startsWith('image/'))ED.pages.push(await shrink(f));renderPages();ic()}});
+document.addEventListener('dragstart',e=>{const pg=e.target.closest?.('.pg');if(pg){ED.drag=+pg.dataset.i;pg.classList.add('drag')}});
+document.addEventListener('dragend',e=>{$$('.pg').forEach(p=>p.classList.remove('drag'))});
+document.addEventListener('dragover',e=>{const pg=e.target.closest?.('.pg');if(pg&&ED.drag!==null){e.preventDefault()}});
+document.addEventListener('drop',e=>{const pg=e.target.closest?.('.pg');if(pg&&ED.drag!==null){e.preventDefault();const to=+pg.dataset.i;const[m]=ED.pages.splice(ED.drag,1);ED.pages.splice(to,0,m);ED.drag=null;renderPages()}});
+function applyBrand(){document.documentElement.style.setProperty('--acc',DB.meta.accent);document.title=`${DB.meta.brand} — Stories Worth Getting Lost In`}
+/* helpers used by views defined after use */
+function chCommit(sid,num,pub){
+  const s=DB.stories.find(x=>x.id===sid);
+  const title=$('#chtitle').value.trim()||'Untitled';
+  let ch=DB.chapters.find(c=>c.storyId===sid&&c.num===num);
+  if(s.type==='novel'){
+    const content=$('#ed').innerHTML;
+    if(pub&&$('#ed').innerText.trim().split(/\s+/).filter(Boolean).length<20)return toast('A chapter needs at least 20 words to publish','info');
+    if(ch){ch.title=title;ch.content=content}else{ch={id:'c_'+sid+'_'+num+'_'+Date.now(),storyId:sid,num,title,content,published:false,deleted:false,at:Date.now()};DB.chapters.push(ch)}
+  }else{
+    if(pub&&!ED.pages.length)return toast('Upload at least one page to publish','info');
+    if(ch){ch.title=title;ch.pages=[...ED.pages]}else{ch={id:'c_'+sid+'_'+num+'_'+Date.now(),storyId:sid,num,title,pages:[...ED.pages],published:false,deleted:false,at:Date.now()};DB.chapters.push(ch)}
+  }
+  const sched=$('#chsched')?.value;
+  if(pub){ch.published=true;ch.at=Date.now();if(sched){ch.scheduledFor=new Date(sched).getTime();ch.published=false}}
+  ch.title=title;s.updAt=Date.now();save();
+  if(ch.published)notifyFollowers(s);
+  toast(ch.published?'Chapter published — followers notified':'Draft saved','rocket');
+  location.hash='#/studio/chapters/'+sid;
+}
+function wizCommit(){
+  wizSync();
+  const slug=WZ.title.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'untitled';
+  const s={id:'s_'+slug+'_'+Date.now().toString(36),slug:slug+'-'+Date.now().toString(36),type:WZ.type,author:me.id,title:WZ.title.trim(),desc:WZ.desc.trim(),genres:WZ.genres,tags:WZ.genres.map(g=>g.toLowerCase()),status:WZ.status,published:WZ.published,featured:false,premium:WZ.premium,views:0,likeBase:0,rating:'—',ratingCount:0,lang:'English',coverSeed:WZ.coverSeed,createdAt:Date.now(),updAt:Date.now(),deleted:false};
+  DB.stories.push(s);
+  if(WZ.schedule){DB.chapters.push({id:'c_'+s.id+'_0',storyId:s.id,num:1,title:'Chapter 1',content:novelBody(s.id),pages:[],published:false,scheduledFor:new Date(WZ.schedule).getTime(),deleted:false,at:Date.now()})}
+  save();
+  toast(WZ.published?'Story published! Add your first chapter.':'Story saved as draft','rocket');
+  location.hash='#/studio/chapters/'+s.id;
+}
+/* original cover seeds for user-created stories */
+const _pic=pic;
+pic=function(seed,w,h){const s=db.stories?.().find?.(x=>seed===x.slug+'-cover'||x.coverSeed===seed);if(s?.type==='comic')return comicArtwork(s).url;return _pic(s?s.slug:seed,w,h)};
+/* boot */
+applyBrand();route();
+</script>
+</body>
+</html>

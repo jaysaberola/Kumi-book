@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="110 92 450 128" width="450" height="128" role="img" aria-labelledby="kumi-title kumi-desc">
+<title id="kumi-title">KUMI</title>
+<desc id="kumi-desc">Animated KUMI logo: an orange open book with a bookmark and hand-drawn KUMI lettering</desc>
+<style>
+.lp,.rp{transform-box:fill-box;animation:open .7s ease-out both}
+.lp{transform-origin:100% 50%;animation-delay:.1s}
+.rp{transform-origin:0% 50%;animation-delay:.3s}
+.sp{stroke-dasharray:100;stroke-dashoffset:100;animation:draw .7s ease-out .7s forwards}
+.bm{transform-box:fill-box;transform-origin:50% 0%;animation:drop .6s cubic-bezier(.3,1.5,.5,1) 1.1s both,sway 3.5s ease-in-out 1.8s infinite}
+.book{animation:float 4s ease-in-out 3s infinite}
+.ltr{fill:none;stroke:#EA580C;stroke-width:11;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:100;stroke-dashoffset:100}
+.l1{animation:draw .7s ease-out 1.3s forwards,wave 4s ease-in-out 3.2s infinite}
+.l2{animation:draw .7s ease-out 1.55s forwards,wave 4s ease-in-out 3.4s infinite}
+.l3{animation:draw .7s ease-out 1.8s forwards,wave 4s ease-in-out 3.6s infinite}
+.l4{animation:draw .7s ease-out 2.05s forwards,wave 4s ease-in-out 3.8s infinite}
+.fp{transform-box:fill-box;transform-origin:0% 50%;opacity:0;animation:turn 4.5s ease-in-out 2.6s infinite}
+.fp2{animation-delay:4.85s}
+.tg{animation:fade .8s ease-out 2.7s both}
+@keyframes turn{0%{transform:scaleX(1);opacity:0}3%{transform:scaleX(1);opacity:1}22%{transform:scaleX(-1);opacity:1}40%{transform:scaleX(-1);opacity:1}46%{transform:scaleX(-1);opacity:0}47%,100%{transform:scaleX(1);opacity:0}}
+@keyframes open{from{transform:scaleX(0);opacity:0}to{transform:scaleX(1);opacity:1}}
+@keyframes draw{to{stroke-dashoffset:0}}
+@keyframes drop{from{transform:translateY(-34px);opacity:0}to{transform:translateY(0);opacity:1}}
+@keyframes sway{0%,100%{transform:rotate(0)}50%{transform:rotate(5deg)}}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+@keyframes wave{0%,35%,100%{transform:translateY(0)}15%{transform:translateY(-7px)}}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){.lp,.rp,.sp,.bm,.book,.ltr,.tg,.fp{animation:none!important;stroke-dashoffset:0}}
+</style>
+<g class="book">
+<path class="lp" d="M200 178 C185 168 160 165 140 171 L140 121 C160 115 185 118 200 128 Z" fill="#C2410C"/>
+<path class="rp" d="M200 178 C215 168 240 165 260 171 L260 121 C240 115 215 118 200 128 Z" fill="#F97316"/>
+<path class="sp" pathLength="100" d="M134 179 C158 172 184 176 200 187 C216 176 242 172 266 179" fill="none" stroke="#C2410C" stroke-width="3" stroke-linecap="round"/>
+<path class="fp" d="M200 178 C215 168 240 165 260 171 L260 121 C240 115 215 118 200 128 Z" fill="#FDBA74" stroke="#EA580C" stroke-width="1"/>
+<path class="fp fp2" d="M200 178 C215 168 240 165 260 171 L260 121 C240 115 215 118 200 128 Z" fill="#FED7AA" stroke="#EA580C" stroke-width="1"/>
+<path class="bm" d="M224 112 L240 112 L240 148 L232 141 L224 148 Z" fill="#7C2D12"/>
+</g>
+<path class="ltr l1" pathLength="100" d="M306 112 V166 M346 112 L310 139 L348 166"/>
+<path class="ltr l2" pathLength="100" d="M376 112 V146 Q376 166 394 166 Q412 166 412 146 V112"/>
+<path class="ltr l3" pathLength="100" d="M444 166 V112 L472 148 L500 112 V166"/>
+<path class="ltr l4" pathLength="100" d="M534 112 V166"/>
+<text class="tg" x="304" y="200" font-family="Arial, Helvetica, sans-serif" font-size="14" letter-spacing="3" fill="#9A5B3A">Your reading corner</text>
+</svg>
